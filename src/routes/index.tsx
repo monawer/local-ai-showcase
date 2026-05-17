@@ -1,26 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback } from "react";
+import { Hero } from "@/components/landing/Hero";
+import { ServicesDashboard } from "@/components/landing/ServicesDashboard";
+import { ChatDemo } from "@/components/landing/ChatDemo";
+import { DemoTiles } from "@/components/landing/DemoTiles";
+import { Architecture } from "@/components/landing/Architecture";
+import { SiteFooter } from "@/components/landing/SiteFooter";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  const scrollTo = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  return (
+    <main className="min-h-screen">
+      <Hero
+        onTryChat={() => scrollTo("chat")}
+        onShowServices={() => scrollTo("services")}
+      />
+      <ServicesDashboard />
+      <ChatDemo />
+      <DemoTiles />
+      <Architecture />
+      <SiteFooter />
+    </main>
+  );
 }
