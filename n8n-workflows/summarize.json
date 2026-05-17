@@ -1,0 +1,53 @@
+{
+  "name": "summarize",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "summarize",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "summarize"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama3.1\",\n  \"prompt\": \"لخّص النص التالي في ثلاث جمل واضحة باللغة العربية:\\n\\n{{ $json.body.input }}\",\n  \"stream\": false\n}",
+        "options": {}
+      },
+      "id": "ollama-call",
+      "name": "Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { output: $input.first().json.response } }];"
+      },
+      "id": "format-response",
+      "name": "Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Ollama", "type": "main", "index": 0 }]]
+    },
+    "Ollama": {
+      "main": [[{ "node": "Format", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

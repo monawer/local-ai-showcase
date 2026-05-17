@@ -1,0 +1,34 @@
+# مثال للنشر بجانب الخدمات الموجودة على نفس السيرفر.
+# عدّل أسماء الشبكات والخدمات لتطابق إعداد docker-compose الخاص بك.
+#
+# يفترض هذا المثال وجود شبكة Docker خارجية اسمها "ai-stack" تضم بالفعل:
+#   - حاوية اسمها "ollama"   تستمع على 11434
+#   - حاوية اسمها "n8n"      تستمع على 5678
+#   - حاوية اسمها "supabase-kong" تستمع على 8000
+#
+# شغّل: docker compose -f docker-compose.example.yml up -d --build
+
+version: "3.9"
+
+services:
+  local-ai-ui:
+    build: .
+    container_name: local-ai-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # عناوين داخلية على شبكة Docker (لا تعرّضها للخارج)
+      OLLAMA_URL: "http://ollama:11434"
+      N8N_URL: "http://n8n:5678"
+      N8N_WEBHOOK_BASE: "http://n8n:5678/webhook"
+      # اختياري: إذا فعّلت n8n API key للحصول على قائمة workflows
+      N8N_API_KEY: "${N8N_API_KEY:-}"
+      SUPABASE_URL: "http://supabase-kong:8000"
+      SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
+    networks:
+      - ai-stack
+
+networks:
+  ai-stack:
+    external: true
