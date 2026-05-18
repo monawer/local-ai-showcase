@@ -2,9 +2,15 @@
 #
 # طريقتان للنشر:
 #
-# 1) عبر Portainer (بناء تلقائي):
-#    Stacks → Add stack → Repository (أو Upload) → عيّن Environment variables
-#    أدناه ثم Deploy. سيقوم Portainer ببناء الصورة محلياً من Dockerfile.
+# 1) عبر Portainer (Build from Git + Webhook — موصى به):
+#    Stacks → Add stack → Build method: Repository
+#      Repository URL: <رابط GitHub العام>
+#      Reference: refs/heads/main
+#      Compose path: docker-compose.yml
+#    فعّل Automatic updates → Webhook، وانسخ الرابط إلى:
+#    GitHub → Settings → Webhooks → Add webhook (Just the push event).
+#    عيّن Environment variables أدناه ثم Deploy.
+#    أي push من Lovable → GitHub سيُعيد البناء والنشر تلقائياً.
 #
 # 2) عبر سطر الأوامر:
 #    docker compose build
