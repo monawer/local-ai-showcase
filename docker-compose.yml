@@ -32,7 +32,8 @@ services:
         VITE_N8N_API_KEY: ${VITE_N8N_API_KEY:-}
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-http://supabase.localhost}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
-    image: local-ai-ui:1.0.1
+    image: local-ai-ui:latest
+    pull_policy: build
     container_name: local-ai-ui
     restart: unless-stopped
     labels:
