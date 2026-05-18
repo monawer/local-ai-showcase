@@ -37,10 +37,14 @@ services:
       - "traefik.http.services.ai.loadbalancer.server.port=8080"
     networks:
       - traefik-net
-     # - supabase_default
-    #  - n8n_default
+      - supabase_default
+      - n8n_default
 
 networks:
   traefik-net:
+    external: true
+  supabase_default:
+    external: true
+  n8n_default:
     external: true
 
