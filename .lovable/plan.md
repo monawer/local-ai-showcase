@@ -1,95 +1,49 @@
-# سبب الخطأ Bad Gateway
+## المشكلة
 
-Traefik يُرجع **Bad Gateway** عندما لا يستطيع الوصول إلى الحاوية على المنفذ الذي يحاول توجيه الطلب إليه. في الإعداد الحالي:
+- `Dockerfile` يشغّل `bun run preview` ← يستدعي `vite preview`.
+- `vite preview` في TanStack Start يحتاج بناء Node SSR في `dist/server/server.js`.
+- مشروعنا مبني لـ Cloudflare Workers (`@cloudflare/vite-plugin` + `wrangler.jsonc`)، فالناتج Worker bundle وليس Node SSR ⇒ `Cannot find module dist/server/server.js` ⇒ 500.
 
-- الحاوية تكشف منفذين: `8080` و `8282`
-- التطبيق يستمع فعلياً على `8080` فقط
-- لم نخبر Traefik أي منفذ يستخدم → يختار خطأً → 502
+## الحل المختار: تشغيل ناتج البناء عبر wrangler محليًا (workerd)
 
-بالإضافة لذلك، حتى لو وصلت الصفحة، فإن استدعاءات `/api/ollama/*` و `/api/supabase/*` و `/api/n8n/*` ستفشل لأن `local-ai-ui` على شبكة `traefik-net` فقط، بينما `ollama` و `supabase-kong` و `n8n` على الأرجح على شبكات أخرى (مثل `supabase_default`).
+نُبقي نفس بيئة التشغيل التي بُني لها المشروع، نعمل أوفلاين، ونحافظ على Server Routes.
 
----
+### 1) تعديل `Dockerfile`
 
-# خطة الإصلاح
+- في مرحلة `builder`: نُبقي `bun install` و `bun run build` كما هي (تُنتج Worker bundle + `wrangler.jsonc`).
+- نُضيف تثبيت `wrangler` ضمن devDependencies (أو نستخدم `bunx wrangler` — لكن لأن السيرفر أوفلاين يجب تضمينه في `node_modules` وقت بناء الصورة).
+- مرحلة `runner` تنسخ `dist/`, `wrangler.jsonc`, `node_modules`, و`package.json` فقط، ثم تشغّل:
+  ```
+  CMD ["bunx","wrangler","dev","--ip","0.0.0.0","--port","8080","--local","--no-show-interactive-dev-session"]
+  ```
+  `--local` يُجبر workerd بدون أي اتصال بـ Cloudflare ⇒ يعمل أوفلاين.
 
-## 1. تعديل `docker-compose.yml`
+### 2) إضافة `wrangler` للحزم
 
-أ. إضافة label لتحديد منفذ Traefik:
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.ai.entrypoints=web"
-  - "traefik.http.routers.ai.rule=Host(`ai.localhost`)"
-  - "traefik.http.services.ai.loadbalancer.server.port=8080"
-```
+`bun add -d wrangler` لتضمينه داخل الصورة (وقت بناء الصورة على جهاز فيه إنترنت)، ثم نقل الصورة للسيرفر المحلي.
 
-ب. إزالة `ports: - "80:80"` (Traefik هو من ينشر الخدمة، لا حاجة لربط منافذ host).
+### 3) تمرير متغيرات البيئة إلى wrangler
 
-ج. ربط الحاوية بجميع الشبكات اللازمة:
-```yaml
-networks:
-  - traefik-net      # للوصول من المتصفح عبر Traefik
-  - supabase_default # للوصول إلى supabase-kong
-  - n8n_default      # للوصول إلى n8n
-  # + شبكة ollama إن كانت منفصلة
+`wrangler dev --local` يقرأ المتغيرات من `wrangler.jsonc` (`vars`) أو من بيئة العملية. سنُبقي قراءتها من `process.env` كما هي اليوم في server routes — كافٍ لأن docker-compose يحقنها عبر `environment:`.
 
-networks:
-  traefik-net:
-    external: true
-  supabase_default:
-    external: true
-  n8n_default:
-    external: true
-```
+### 4) لا تغييرات على docker-compose
 
-د. تصحيح `N8N_URL`: حالياً `http://n8n.localhost` — هذا اسم host لـ Traefik من خارج الحاوية. من داخل شبكة Docker يجب استخدام اسم الحاوية مباشرة، مثلاً:
-```yaml
-N8N_URL: "http://n8n:5678"
-N8N_WEBHOOK_BASE: "http://n8n:5678/webhook"
-OLLAMA_URL: "http://ollama:11434"   # أو host.docker.internal:11434 إذا Ollama على Windows host
-```
+- نفس الشبكات (`traefik-net`, `supabase_default`, `n8n_default`).
+- نفس عنوان traefik على المنفذ 8080.
+- نفس متغيرات `OLLAMA_URL`, `N8N_URL`, `SUPABASE_URL`.
 
-## 2. اكتشاف الأسماء الصحيحة للحاويات والشبكات
+### 5) خطوات النشر على السيرفر
 
-قبل تعديل الـ compose، شغّل على السيرفر:
-```powershell
-docker ps --format "table {{.Names}}\t{{.Networks}}\t{{.Ports}}"
-docker network ls
-```
-ثم استبدل `supabase_default` / `n8n_default` / `n8n` / `supabase-kong` بالأسماء الفعلية.
+1. على جهاز فيه إنترنت: `docker compose build` (يجلب الحزم + wrangler).
+2. `docker save local-ai-ui-local-ai-ui -o ai-ui.tar` ونقل الملف للسيرفر.
+3. على السيرفر: `docker load -i ai-ui.tar` ثم `docker compose up -d`.
+4. التحقق: `docker logs local-ai-ui` يجب أن يظهر `Ready on http://0.0.0.0:8080`.
+5. فتح `http://ai.localhost` عبر traefik.
 
-## 3. حالة Ollama الخاصة (مهم لويندوز)
+### 6) خطة بديلة (إن رفض wrangler العمل لأي سبب)
 
-إذا كان Ollama مثبّتاً مباشرة على Windows (وليس داخل Docker)، فاستخدم:
-```yaml
-OLLAMA_URL: "http://host.docker.internal:11434"
-extra_hosts:
-  - "host.docker.internal:host-gateway"
-```
+تحويل المشروع لبناء SPA ثابت + خادم Node صغير لتمرير `/api/*` كـ proxy إلى Ollama/n8n/Supabase مباشرة. أكثر عملًا لكن يُلغي الاعتماد على workerd بالكامل.
 
-أما إن كان Ollama في حاوية، فاستخدم اسم الحاوية وتأكد من ربط `local-ai-ui` بنفس شبكتها.
+## ملاحظة فنية
 
-## 4. إعادة البناء والتشغيل
-```powershell
-docker compose -f docker-compose.yml up -d --build --force-recreate
-docker logs -f local-ai-ui
-```
-ثم افتح: `http://ai.localhost`
-
-## 5. تحقق سريع من داخل الحاوية
-```powershell
-docker exec -it local-ai-ui sh
-wget -qO- http://ollama:11434/api/tags
-wget -qO- http://supabase-kong:8000
-wget -qO- http://n8n:5678
-```
-أي فشل = مشكلة شبكة، أي نجاح = الإعداد صحيح.
-
----
-
-# قبل التنفيذ — أحتاج منك معلومتين
-
-1. **أين يعمل Ollama؟** داخل Docker (اسم الحاوية) أم مباشرة على Windows host؟
-2. **مخرجات `docker network ls` و `docker ps`** لمعرفة أسماء شبكات supabase و n8n الحقيقية.
-
-عند تأكيد ذلك، سأحدّث `docker-compose.yml` بالقيم الصحيحة مباشرة.
+السبب لا يخص الشبكات أو Bad Gateway هذه المرة — هو فقط أن أمر التشغيل في الحاوية غير متوافق مع نوع البناء. بعد التعديل أعلاه ستختفي رسائل `ResolveMessage: Cannot find module .../dist/server/server.js` تمامًا.
