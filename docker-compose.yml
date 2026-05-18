@@ -1,47 +1,26 @@
-# نشر local-ai-ui خلف Traefik مع الاتصال بخدمات Docker الأخرى.
+# local-ai-ui — نشر خلف Traefik على Docker Desktop (Windows)
 #
-# قبل التشغيل، تحقق من أسماء الشبكات الفعلية على سيرفرك:
-#   docker network ls
-#   docker ps --format "table {{.Names}}\t{{.Networks}}"
-#
-# ثم عدّل أسماء الشبكات أدناه (supabase_default / n8n_default) لتطابق الواقع.
-
-version: "3.9"
+# قبل التشغيل:
+#   1) ابنِ الصورة:  docker build -t local-ai-ui:1.0.0 .
+#      (أو على جهاز فيه إنترنت ثم: docker save + استيراد عبر Portainer)
+#   2) تأكد من وجود شبكة Traefik الخارجية:
+#        docker network create traefik-net   # إذا لم تكن موجودة
+#   3) تأكد من تفعيل CORS في Ollama على Windows:
+#        setx OLLAMA_ORIGINS "*"            (ثم أعد تشغيل Ollama)
 
 services:
   local-ai-ui:
-    # الصورة مبنية مسبقًا على جهاز فيه إنترنت ومستوردة في Portainer.
-    # لتحديث النسخة: ابنِ tag جديد (1.0.1, 1.0.2…) واستوردها ثم بدّل الرقم هنا.
     image: local-ai-ui:1.0.0
     container_name: local-ai-ui
     restart: unless-stopped
-    # لا حاجة لربط منافذ host — Traefik يتولى نشر الخدمة على ai.localhost
-    environment:
-      # Ollama مثبّت على Windows host (خارج Docker) — نستخدم host.docker.internal
-      OLLAMA_URL: "http://host.docker.internal:11434"
-      # n8n داخل Docker — استخدم اسم الحاوية الداخلي والمنفذ الداخلي 5678
-      N8N_URL: "http://n8n.localhost"
-      N8N_WEBHOOK_BASE: "http://n8n.localhost"
-      N8N_API_KEY: "${N8N_API_KEY:-}"
-      # Supabase Kong داخل Docker
-   #   SUPABASE_URL: "http://supabase-kong:8000"
-    #  SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
-    # يسمح للحاوية بالوصول إلى Ollama على Windows host
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ai.entrypoints=web"
       - "traefik.http.routers.ai.rule=Host(`ai.localhost`)"
-      # ضروري: يخبر Traefik أن التطبيق يستمع على 8080 داخل الحاوية
+      - "traefik.http.routers.ai.entrypoints=web"
       - "traefik.http.services.ai.loadbalancer.server.port=8080"
     networks:
       - traefik-net
 
-
 networks:
   traefik-net:
     external: true
-  supabase_default:
-
-
