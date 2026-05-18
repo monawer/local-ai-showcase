@@ -1,15 +1,31 @@
 # local-ai-ui — نشر خلف Traefik على Docker Desktop (Windows)
 #
-# قبل التشغيل:
-#   1) ابنِ الصورة:  docker build -t local-ai-ui:1.0.0 .
-#      (أو على جهاز فيه إنترنت ثم: docker save + استيراد عبر Portainer)
-#   2) تأكد من وجود شبكة Traefik الخارجية:
-#        docker network create traefik-net   # إذا لم تكن موجودة
-#   3) تأكد من تفعيل CORS في Ollama على Windows:
-#        setx OLLAMA_ORIGINS "*"            (ثم أعد تشغيل Ollama)
+# طريقتان للنشر:
+#
+# 1) عبر Portainer (بناء تلقائي):
+#    Stacks → Add stack → Repository (أو Upload) → عيّن Environment variables
+#    أدناه ثم Deploy. سيقوم Portainer ببناء الصورة محلياً من Dockerfile.
+#
+# 2) عبر سطر الأوامر:
+#    docker compose build
+#    docker compose up -d
+#
+# متطلبات:
+#   - شبكة Traefik موجودة:   docker network create traefik-net
+#   - تفعيل CORS في Ollama على Windows:  setx OLLAMA_ORIGINS "*"  (ثم أعد التشغيل)
 
 services:
   local-ai-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_OLLAMA_URL: ${VITE_OLLAMA_URL:-http://localhost:11434}
+        VITE_N8N_URL: ${VITE_N8N_URL:-http://n8n.localhost}
+        VITE_N8N_WEBHOOK_BASE: ${VITE_N8N_WEBHOOK_BASE:-http://n8n.localhost}
+        VITE_N8N_API_KEY: ${VITE_N8N_API_KEY:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-http://supabase.localhost}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
     image: local-ai-ui:1.0.0
     container_name: local-ai-ui
     restart: unless-stopped
