@@ -25,21 +25,43 @@ VITE_SUPABASE_URL=http://supabase.localhost
 VITE_SUPABASE_ANON_KEY=
 ```
 
-### الطريقة (ب) — Portainer CE (بناء تلقائي)
+### الطريقة (ب) — Portainer CE: بناء مباشر من GitHub + Webhook (موصى به)
+
+أي تعديل في Lovable → push تلقائي إلى GitHub → Portainer يعيد البناء والنشر تلقائياً.
 
 1. **Networks → Add network** باسم `traefik-net` (Bridge) إن لم تكن موجودة.
 2. **Stacks → Add stack** باسم `local-ai-ui`.
-3. اختر مصدر الكود:
-   - **Repository**: ضع رابط Git للمشروع وفرع التشغيل.
-   - أو **Upload**: ارفع أرشيف `.zip` يحوي المصدر كاملاً.
-4. في قسم **Environment variables** أضف ما تحتاجه من:
+3. **Build method**: اختر **Repository**.
+   - **Repository URL**: رابط مستودع GitHub العام للمشروع.
+   - **Repository reference**: `refs/heads/main`.
+   - **Compose path**: `docker-compose.yml`.
+4. فعّل **Automatic updates** → اختر **Webhook** → انسخ الرابط الذي يولّده Portainer
+   (بصيغة `https://<portainer-host>/api/stacks/webhooks/<uuid>`).
+5. في GitHub: **Settings → Webhooks → Add webhook**:
+   - **Payload URL**: ألصق رابط Portainer.
+   - **Content type**: `application/json`.
+   - **Which events**: *Just the push event*.
+   - **Active**: ✓
+6. في قسم **Environment variables** داخل Portainer أضف:
    `VITE_OLLAMA_URL`, `VITE_N8N_URL`, `VITE_N8N_WEBHOOK_BASE`,
    `VITE_N8N_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-5. اضغط **Deploy the stack** — سيقرأ Portainer ملف `docker-compose.yml`
-   ويبني الصورة محلياً من `Dockerfile` ثم يشغّلها.
+7. اضغط **Deploy the stack** — سيقوم Portainer بسحب الكود من GitHub وبناء
+   الصورة محلياً من `Dockerfile` ثم تشغيلها.
 
-لأي تغيير في قيم `VITE_*` لاحقاً: عدّل المتغيّر من واجهة الـ Stack ثم
-**Update the stack** مع تفعيل خيار إعادة البناء (Re-build).
+> بفضل `pull_policy: build` في `docker-compose.yml`، Portainer يعيد البناء
+> في كل تحديث Stack أو عند استقبال الـ webhook — **بدون الحاجة لتغيير image tag**.
+
+#### تغيير قيم `VITE_*` فقط (بدون commit جديد)
+
+عدّل المتغير من Stack → **Update the stack** → فعّل
+**Re-pull image and redeploy** → سيُعاد البناء بالقيم الجديدة.
+
+#### التحقق بعد النشر
+
+```bash
+docker logs -f local-ai-ui
+docker exec local-ai-ui sh -c "grep -o 'http://[^\"]*' /usr/share/nginx/html/assets/*.js | sort -u"
+```
 
 ثم افتح: <http://ai.localhost>
 
