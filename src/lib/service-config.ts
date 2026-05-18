@@ -1,16 +1,21 @@
 /**
- * Server-side configuration for connecting to local Docker services.
- * Values are read from environment variables at runtime (process.env).
- * Defaults match docker-compose service names on the default user network.
+ * Client-side service URLs.
+ * Configured at BUILD time via VITE_* env vars (see Dockerfile ARGs).
+ * Defaults are tuned for Docker Desktop on Windows with Traefik on .localhost.
  */
 
 export const serviceConfig = {
-  ollamaUrl: process.env.OLLAMA_URL ?? "http://ollama:11434",
-  n8nUrl: process.env.N8N_URL ?? "http://n8n:5678",
-  n8nWebhookBase: process.env.N8N_WEBHOOK_BASE ?? "http://n8n:5678/webhook",
-  n8nApiKey: process.env.N8N_API_KEY ?? "",
-  supabaseUrl: process.env.SUPABASE_URL ?? "http://supabase-kong:8000",
-  supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
+  ollamaUrl:
+    import.meta.env.VITE_OLLAMA_URL ?? "http://localhost:11434",
+  n8nUrl: import.meta.env.VITE_N8N_URL ?? "http://n8n.localhost",
+  n8nWebhookBase:
+    import.meta.env.VITE_N8N_WEBHOOK_BASE ??
+    import.meta.env.VITE_N8N_URL ??
+    "http://n8n.localhost",
+  n8nApiKey: import.meta.env.VITE_N8N_API_KEY ?? "",
+  supabaseUrl:
+    import.meta.env.VITE_SUPABASE_URL ?? "http://supabase.localhost",
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
 };
 
 export async function fetchWithTimeout(

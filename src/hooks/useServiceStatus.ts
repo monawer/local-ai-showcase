@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { serviceConfig, fetchWithTimeout } from "@/lib/service-config";
 
 export type OllamaModel = { name: string; size: number; modified_at: string };
 
@@ -24,54 +25,100 @@ export type SupabaseStatus = {
   error?: string;
 };
 
-export type SystemStats = {
-  ok: boolean;
-  available: boolean;
-  platform?: string;
-  hostname?: string;
-  uptime?: number;
-  memory?: { total: number; free: number; usedPct: number };
-  cpu?: { count: number; model: string; load1: number };
-};
-
-async function fetchJSON<T>(url: string): Promise<T> {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url} → ${r.status}`);
-  return r.json() as Promise<T>;
-}
-
 export function useOllamaStatus() {
-  return useQuery({
+  return useQuery<OllamaStatus>({
     queryKey: ["status", "ollama"],
-    queryFn: () => fetchJSON<OllamaStatus>("/api/ollama/tags"),
+    queryFn: async () => {
+      try {
+        const r = await fetchWithTimeout(`${serviceConfig.ollamaUrl}/api/tags`);
+        if (!r.ok) {
+          return { ok: false, error: `HTTP ${r.status}`, models: [] };
+        }
+        const j = (await r.json()) as { models?: OllamaModel[] };
+        return { ok: true, models: j.models ?? [] };
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : "غير متاح",
+          models: [],
+        };
+      }
+    },
     refetchInterval: 15000,
-    retry: false,
   });
 }
 
 export function useN8nStatus() {
-  return useQuery({
+  return useQuery<N8nStatus>({
     queryKey: ["status", "n8n"],
-    queryFn: () => fetchJSON<N8nStatus>("/api/n8n/workflows"),
+    queryFn: async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (serviceConfig.n8nApiKey) {
+          headers["X-N8N-API-KEY"] = serviceConfig.n8nApiKey;
+        }
+        const r = await fetchWithTimeout(
+          `${serviceConfig.n8nUrl}/api/v1/workflows`,
+          { headers },
+        );
+        if (!r.ok) {
+          // n8n مفعّل لكن بدون API key — نعتبره "جزئي"
+          return {
+            ok: true,
+            total: 0,
+            active: 0,
+            workflows: [],
+            note:
+              r.status === 401
+                ? "n8n متصل، لكن يحتاج VITE_N8N_API_KEY لقراءة workflows"
+                : `HTTP ${r.status}`,
+          };
+        }
+        const j = (await r.json()) as {
+          data?: Array<{ id: string; name: string; active: boolean }>;
+        };
+        const workflows = j.data ?? [];
+        return {
+          ok: true,
+          total: workflows.length,
+          active: workflows.filter((w) => w.active).length,
+          workflows,
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          total: 0,
+          active: 0,
+          workflows: [],
+          error: e instanceof Error ? e.message : "غير متاح",
+        };
+      }
+    },
     refetchInterval: 15000,
-    retry: false,
   });
 }
 
 export function useSupabaseStatus() {
-  return useQuery({
+  return useQuery<SupabaseStatus>({
     queryKey: ["status", "supabase"],
-    queryFn: () => fetchJSON<SupabaseStatus>("/api/supabase/health"),
+    queryFn: async () => {
+      try {
+        const r = await fetchWithTimeout(
+          `${serviceConfig.supabaseUrl}/auth/v1/health`,
+        );
+        return {
+          ok: r.ok,
+          status: r.status,
+          services: { rest: r.ok, gateway: r.ok },
+        };
+      } catch (e) {
+        return {
+          ok: false,
+          services: { rest: false, gateway: false },
+          error: e instanceof Error ? e.message : "غير متاح",
+        };
+      }
+    },
     refetchInterval: 15000,
-    retry: false,
-  });
-}
-
-export function useSystemStats() {
-  return useQuery({
-    queryKey: ["status", "system"],
-    queryFn: () => fetchJSON<SystemStats>("/api/system/stats"),
-    refetchInterval: 10000,
-    retry: false,
   });
 }

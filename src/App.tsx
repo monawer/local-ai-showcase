@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { Hero } from "@/components/landing/Hero";
 import { ServicesDashboard } from "@/components/landing/ServicesDashboard";
@@ -7,13 +6,11 @@ import { DemoTiles } from "@/components/landing/DemoTiles";
 import { Architecture } from "@/components/landing/Architecture";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 
-export const Route = createFileRoute("/")({
-  component: Index,
-});
-
-function Index() {
+export default function App() {
   const scrollTo = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
   return (
