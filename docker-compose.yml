@@ -10,7 +10,9 @@ version: "3.9"
 
 services:
   local-ai-ui:
-    build: .
+    # الصورة مبنية مسبقًا على جهاز فيه إنترنت ومستوردة في Portainer.
+    # لتحديث النسخة: ابنِ tag جديد (1.0.1, 1.0.2…) واستوردها ثم بدّل الرقم هنا.
+    image: local-ai-ui:1.0.0
     container_name: local-ai-ui
     restart: unless-stopped
     # لا حاجة لربط منافذ host — Traefik يتولى نشر الخدمة على ai.localhost
