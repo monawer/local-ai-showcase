@@ -6,32 +6,40 @@
 
 ## النشر السريع على Docker Desktop + Traefik
 
-### 1) بناء الصورة
+### الطريقة (أ) — سطر الأوامر
 
 ```bash
-docker build -t local-ai-ui:1.0.0 .
-```
-
-> لتغيير العناوين الافتراضية وقت البناء استخدم `--build-arg`:
-> ```bash
-> docker build \
->   --build-arg VITE_OLLAMA_URL=http://host.docker.internal:11434 \
->   --build-arg VITE_N8N_URL=http://n8n.localhost \
->   --build-arg VITE_N8N_API_KEY=YOUR_KEY \
->   -t local-ai-ui:1.0.0 .
-> ```
-
-### 2) إنشاء شبكة Traefik (إذا لم تكن موجودة)
-
-```bash
-docker network create traefik-net
-```
-
-### 3) التشغيل
-
-```bash
+docker network create traefik-net   # مرة واحدة فقط
+docker compose build                 # يبني الصورة مع VITE_* من .env
 docker compose up -d
 ```
+
+ضع القيم في ملف `.env` بجوار `docker-compose.yml` (انظر `.env.example`):
+
+```env
+VITE_OLLAMA_URL=http://localhost:11434
+VITE_N8N_URL=http://n8n.localhost
+VITE_N8N_WEBHOOK_BASE=http://n8n.localhost
+VITE_N8N_API_KEY=
+VITE_SUPABASE_URL=http://supabase.localhost
+VITE_SUPABASE_ANON_KEY=
+```
+
+### الطريقة (ب) — Portainer CE (بناء تلقائي)
+
+1. **Networks → Add network** باسم `traefik-net` (Bridge) إن لم تكن موجودة.
+2. **Stacks → Add stack** باسم `local-ai-ui`.
+3. اختر مصدر الكود:
+   - **Repository**: ضع رابط Git للمشروع وفرع التشغيل.
+   - أو **Upload**: ارفع أرشيف `.zip` يحوي المصدر كاملاً.
+4. في قسم **Environment variables** أضف ما تحتاجه من:
+   `VITE_OLLAMA_URL`, `VITE_N8N_URL`, `VITE_N8N_WEBHOOK_BASE`,
+   `VITE_N8N_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+5. اضغط **Deploy the stack** — سيقرأ Portainer ملف `docker-compose.yml`
+   ويبني الصورة محلياً من `Dockerfile` ثم يشغّلها.
+
+لأي تغيير في قيم `VITE_*` لاحقاً: عدّل المتغيّر من واجهة الـ Stack ثم
+**Update the stack** مع تفعيل خيار إعادة البناء (Re-build).
 
 ثم افتح: <http://ai.localhost>
 
