@@ -1,49 +1,104 @@
-## المشكلة
+## السياق
 
-- `Dockerfile` يشغّل `bun run preview` ← يستدعي `vite preview`.
-- `vite preview` في TanStack Start يحتاج بناء Node SSR في `dist/server/server.js`.
-- مشروعنا مبني لـ Cloudflare Workers (`@cloudflare/vite-plugin` + `wrangler.jsonc`)، فالناتج Worker bundle وليس Node SSR ⇒ `Cannot find module dist/server/server.js` ⇒ 500.
+- سيرفر Windows بدون إنترنت، يُدار عبر **Portainer CE 2.39.2**.
+- لا يمكن لـ Portainer تنفيذ `bun install` / `vite build` داخل الحاوية لأن السيرفر أوفلاين.
+- لذلك: نبني الصورة على جهاز فيه إنترنت، نصدّرها كملف tar، نستوردها داخل Portainer، ثم نشغّل Stack يشير للصورة بالاسم (بدون `build:`).
 
-## الحل المختار: تشغيل ناتج البناء عبر wrangler محليًا (workerd)
+## 1) تجهيز الصورة على جهاز فيه إنترنت
 
-نُبقي نفس بيئة التشغيل التي بُني لها المشروع، نعمل أوفلاين، ونحافظ على Server Routes.
+داخل مجلد المشروع:
 
-### 1) تعديل `Dockerfile`
+```
+docker build -t local-ai-ui:1.0.0 .
+docker save local-ai-ui:1.0.0 -o local-ai-ui-1.0.0.tar
+```
 
-- في مرحلة `builder`: نُبقي `bun install` و `bun run build` كما هي (تُنتج Worker bundle + `wrangler.jsonc`).
-- نُضيف تثبيت `wrangler` ضمن devDependencies (أو نستخدم `bunx wrangler` — لكن لأن السيرفر أوفلاين يجب تضمينه في `node_modules` وقت بناء الصورة).
-- مرحلة `runner` تنسخ `dist/`, `wrangler.jsonc`, `node_modules`, و`package.json` فقط، ثم تشغّل:
-  ```
-  CMD ["bunx","wrangler","dev","--ip","0.0.0.0","--port","8080","--local","--no-show-interactive-dev-session"]
-  ```
-  `--local` يُجبر workerd بدون أي اتصال بـ Cloudflare ⇒ يعمل أوفلاين.
+ينتج ملف `local-ai-ui-1.0.0.tar` (انقله للسيرفر عبر USB/شبكة داخلية).
 
-### 2) إضافة `wrangler` للحزم
+> `Dockerfile` الحالي يبني الـ Worker ثم يشغّله عبر `wrangler --local` (workerd) أوفلاين — لا يحتاج إنترنت وقت التشغيل.
 
-`bun add -d wrangler` لتضمينه داخل الصورة (وقت بناء الصورة على جهاز فيه إنترنت)، ثم نقل الصورة للسيرفر المحلي.
+## 2) استيراد الصورة داخل Portainer
 
-### 3) تمرير متغيرات البيئة إلى wrangler
+في Portainer:
 
-`wrangler dev --local` يقرأ المتغيرات من `wrangler.jsonc` (`vars`) أو من بيئة العملية. سنُبقي قراءتها من `process.env` كما هي اليوم في server routes — كافٍ لأن docker-compose يحقنها عبر `environment:`.
+1. **Images** → **Import**.
+2. اختر الملف `local-ai-ui-1.0.0.tar` → **Upload**.
+3. تأكد من ظهور `local-ai-ui:1.0.0` في قائمة الصور.
 
-### 4) لا تغييرات على docker-compose
+## 3) تجهيز شبكات Docker المطلوبة (مرة واحدة)
 
-- نفس الشبكات (`traefik-net`, `supabase_default`, `n8n_default`).
-- نفس عنوان traefik على المنفذ 8080.
-- نفس متغيرات `OLLAMA_URL`, `N8N_URL`, `SUPABASE_URL`.
+من **Networks** في Portainer أو من PowerShell:
 
-### 5) خطوات النشر على السيرفر
+```
+docker network create traefik-net   # إن لم تكن موجودة
+```
 
-1. على جهاز فيه إنترنت: `docker compose build` (يجلب الحزم + wrangler).
-2. `docker save local-ai-ui-local-ai-ui -o ai-ui.tar` ونقل الملف للسيرفر.
-3. على السيرفر: `docker load -i ai-ui.tar` ثم `docker compose up -d`.
-4. التحقق: `docker logs local-ai-ui` يجب أن يظهر `Ready on http://0.0.0.0:8080`.
-5. فتح `http://ai.localhost` عبر traefik.
+أما `supabase_default` و `n8n_default` فهي تُنشأ تلقائيًا عند تشغيل ستاكات Supabase و n8n. لو أسماؤها مختلفة عندك تحقق من **Networks** وانسخ الأسماء الفعلية.
 
-### 6) خطة بديلة (إن رفض wrangler العمل لأي سبب)
+## 4) إنشاء Stack في Portainer
 
-تحويل المشروع لبناء SPA ثابت + خادم Node صغير لتمرير `/api/*` كـ proxy إلى Ollama/n8n/Supabase مباشرة. أكثر عملًا لكن يُلغي الاعتماد على workerd بالكامل.
+**Stacks → Add stack** باسم `local-ai-ui`، اختر **Web editor**، والصق:
 
-## ملاحظة فنية
+```yaml
+services:
+  local-ai-ui:
+    image: local-ai-ui:1.0.0
+    container_name: local-ai-ui
+    restart: unless-stopped
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+      N8N_URL: http://n8n:5678
+      N8N_WEBHOOK_BASE: http://n8n:5678/webhook
+      N8N_API_KEY: ""
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - traefik-net
+      - supabase_default
+      - n8n_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai.rule=Host(`ai.localhost`)"
+      - "traefik.http.routers.ai.entrypoints=web"
+      - "traefik.http.services.ai.loadbalancer.server.port=8080"
 
-السبب لا يخص الشبكات أو Bad Gateway هذه المرة — هو فقط أن أمر التشغيل في الحاوية غير متوافق مع نوع البناء. بعد التعديل أعلاه ستختفي رسائل `ResolveMessage: Cannot find module .../dist/server/server.js` تمامًا.
+networks:
+  traefik-net:
+    external: true
+  supabase_default:
+    external: true
+  n8n_default:
+    external: true
+```
+
+ثم **Deploy the stack**.
+
+> ملاحظات:
+> - لا يوجد `build:` — Portainer لن يحاول البناء.
+> - عدّل أسماء الشبكات الخارجية لتطابق ما عندك فعلًا.
+> - لو Ollama يعمل داخل Docker بدل Windows: غيّر `OLLAMA_URL` إلى `http://ollama:11434` وأضف شبكة Ollama.
+
+## 5) التحقق
+
+في Portainer → Containers → `local-ai-ui` → **Logs**:
+
+- يجب أن تظهر رسالة مشابهة لـ `Ready on http://0.0.0.0:8080`.
+- لا يجب أن تظهر `Cannot find module .../dist/server/server.js` (تلك كانت مشكلة `vite preview` السابقة).
+
+ثم افتح من المتصفح: `http://ai.localhost`.
+
+## 6) التحديثات اللاحقة
+
+أي تعديل على الكود:
+
+1. أعد البناء على جهاز الإنترنت برقم نسخة جديد، مثل `local-ai-ui:1.0.1`.
+2. صدّر، استورد في Portainer.
+3. في **Stacks → local-ai-ui → Editor**: غيّر `image: local-ai-ui:1.0.1` → **Update the stack** (مع **Re-pull image** = OFF لأنها محلية).
+
+## خلاصة الفرق عن الخطة السابقة
+
+- لا يوجد `docker compose build` على السيرفر — البناء يحدث خارج السيرفر.
+- يُستبدل `docker compose up -d` بـ **Stack في Portainer** يشير لصورة محلية مستوردة.
+- باقي الإعدادات (Traefik labels، شبكات، متغيرات بيئة، wrangler كأمر تشغيل) كما هي.
