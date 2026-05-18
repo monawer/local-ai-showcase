@@ -1,10 +1,9 @@
-import { Brain, Workflow, Database, Cpu } from "lucide-react";
+import { Brain, Workflow, Database } from "lucide-react";
 import { ServiceCard } from "./ServiceCard";
 import {
   useOllamaStatus,
   useN8nStatus,
   useSupabaseStatus,
-  useSystemStats,
 } from "@/hooks/useServiceStatus";
 
 function formatBytes(n: number) {
@@ -19,7 +18,6 @@ export function ServicesDashboard() {
   const ollama = useOllamaStatus();
   const n8n = useN8nStatus();
   const supa = useSupabaseStatus();
-  const sys = useSystemStats();
 
   const ollamaStatus = ollama.isLoading
     ? "loading"
@@ -43,8 +41,6 @@ export function ServicesDashboard() {
       ? "ok"
       : "down";
 
-  const sysStatus = sys.isLoading ? "loading" : sys.data?.available ? "ok" : "warn";
-
   return (
     <section id="services" className="relative py-20 md:py-28">
       <div className="container mx-auto max-w-6xl px-6">
@@ -54,12 +50,14 @@ export function ServicesDashboard() {
             حالة الخدمات في الوقت الحقيقي
           </h2>
           <p className="mt-3 text-muted-foreground">
-            تتصل الصفحة مباشرة بالخدمات المركّبة على السيرفر عبر شبكة Docker
-            الداخلية، وتُحدّث الحالة كل بضع ثوانٍ.
+            تتصل الصفحة مباشرة بالخدمات على سيرفرك (Ollama, n8n, Supabase)
+            وتُحدّث الحالة كل 15 ثانية. إذا ظهرت "غير متاح"، تحقق من تفعيل
+            <code className="mx-1 font-mono">OLLAMA_ORIGINS=*</code>
+            ومن أن الخدمات قيد التشغيل.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3">
           <ServiceCard
             title="Ollama"
             icon={Brain}
@@ -92,45 +90,10 @@ export function ServicesDashboard() {
             status={supaStatus as never}
             primary={supa.data?.ok ? "OK" : "—"}
             rows={[
-              {
-                label: "REST",
-                value: supa.data?.services.rest ? "✓" : "✕",
-              },
-              {
-                label: "Gateway",
-                value: supa.data?.services.gateway ? "✓" : "✕",
-              },
+              { label: "REST", value: supa.data?.services.rest ? "✓" : "✕" },
+              { label: "Gateway", value: supa.data?.services.gateway ? "✓" : "✕" },
             ]}
             note={supa.data?.error ?? "Postgres + Auth + Storage + Realtime"}
-          />
-
-          <ServiceCard
-            title="النظام"
-            icon={Cpu}
-            status={sysStatus as never}
-            primary={sys.data?.memory ? `${sys.data.memory.usedPct}%` : "—"}
-            rows={
-              sys.data?.available
-                ? [
-                    { label: "المعالج", value: `${sys.data.cpu?.count ?? "—"} نواة` },
-                    {
-                      label: "الذاكرة",
-                      value: sys.data.memory
-                        ? `${formatBytes(sys.data.memory.total - sys.data.memory.free)} / ${formatBytes(sys.data.memory.total)}`
-                        : "—",
-                    },
-                    {
-                      label: "الجهاز",
-                      value: sys.data.hostname ?? "—",
-                    },
-                  ]
-                : []
-            }
-            note={
-              sys.data?.available
-                ? `${sys.data.platform} • تشغيل منذ ${Math.round((sys.data.uptime ?? 0) / 3600)} ساعة`
-                : "إحصائيات النظام غير متاحة في هذه البيئة"
-            }
           />
         </div>
       </div>

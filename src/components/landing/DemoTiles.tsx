@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { serviceConfig } from "@/lib/service-config";
 
 type Demo = {
   id: string;
@@ -68,7 +69,8 @@ function DemoCard({ demo }: { demo: Demo }) {
     setError(null);
     setResult(null);
     try {
-      const r = await fetch(`/api/n8n/trigger/${demo.webhook}`, {
+      const url = `${serviceConfig.n8nWebhookBase}/webhook/${demo.webhook}`;
+      const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: input || demo.example }),
