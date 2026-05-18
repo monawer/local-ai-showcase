@@ -1,61 +1,72 @@
-# واجهة عرض السيرفر المحلي للذكاء الاصطناعي
+# local-ai-ui
 
-صفحة واحدة تُعرّف بإمكانيات سيرفرك المحلي وتشغّل خدماته بشكل تفاعلي،
-مصمَّمة للعمل داخل حاوية Docker على نفس السيرفر بدون اتصال بالإنترنت.
+واجهة ويب خفيفة (Vite + React SPA خلف Nginx) لاستعراض/تشغيل خدمات الذكاء الاصطناعي
+المحلية على سيرفرك: **Ollama** و **n8n** و **Supabase** — كل شيء داخل شبكتك بدون
+أي اتصال خارجي.
 
-## ما تتصل به الصفحة
+## النشر السريع على Docker Desktop + Traefik
 
-- **Ollama** (`/api/tags`, `/api/chat`) — قائمة النماذج المحلية + chat مباشر بـ streaming.
-- **n8n** (`/api/v1/workflows`, `/webhook/*`) — حالة الـ workflows وتشغيلها.
-- **Supabase** (Kong gateway) — فحص حالة REST/Auth.
-- **نظام التشغيل** — إحصائيات RAM/CPU (متاحة عند التشغيل على Node).
+### 1) بناء الصورة
 
-كل الاتصالات تمرّ عبر server routes داخلية (`/api/*`) لتفادي مشاكل CORS
-وإبقاء عناوين الخدمات داخل شبكة Docker.
+```bash
+docker build -t local-ai-ui:1.0.0 .
+```
 
-## التشغيل بـ Docker
+> لتغيير العناوين الافتراضية وقت البناء استخدم `--build-arg`:
+> ```bash
+> docker build \
+>   --build-arg VITE_OLLAMA_URL=http://host.docker.internal:11434 \
+>   --build-arg VITE_N8N_URL=http://n8n.localhost \
+>   --build-arg VITE_N8N_API_KEY=YOUR_KEY \
+>   -t local-ai-ui:1.0.0 .
+> ```
 
-1. تأكد من وجود شبكة Docker خارجية تضم الخدمات (المثال يستخدم `ai-stack`):
+### 2) إنشاء شبكة Traefik (إذا لم تكن موجودة)
 
-   ```bash
-   docker network create ai-stack
-   ```
-   ثم اربط حاويات `ollama` و `n8n` و `supabase-kong` بنفس الشبكة.
+```bash
+docker network create traefik-net
+```
 
-2. عدّل `docker-compose.example.yml` ليطابق أسماء حاوياتك.
+### 3) التشغيل
 
-3. شغّل:
+```bash
+docker compose up -d
+```
 
-   ```bash
-   docker compose -f docker-compose.example.yml up -d --build
-   ```
+ثم افتح: <http://ai.localhost>
 
-4. افتح المتصفح على: `http://<server-ip>:8080`
+## متطلبات على Windows host
 
-## متغيرات البيئة
+- **Ollama**: لتمكين المتصفح من استدعائه مباشرة، فعّل CORS:
+  ```powershell
+  setx OLLAMA_ORIGINS "*"
+  ```
+  ثم أعد تشغيل خدمة Ollama.
 
-| المتغير | الوصف | الافتراضي |
-|---------|-------|-----------|
-| `OLLAMA_URL` | عنوان Ollama الداخلي | `http://ollama:11434` |
-| `N8N_URL` | عنوان n8n الداخلي | `http://n8n:5678` |
-| `N8N_WEBHOOK_BASE` | الجذر لاستدعاء Webhooks | `http://n8n:5678/webhook` |
-| `N8N_API_KEY` | مفتاح n8n API (اختياري — لقائمة workflows) | — |
-| `SUPABASE_URL` | عنوان Kong gateway | `http://supabase-kong:8000` |
-| `SUPABASE_ANON_KEY` | المفتاح العام لـ Supabase | — |
+- **n8n**: لقراءة قائمة الـ workflows ولوحة الحالة، أنشئ **API Key** من
+  `Settings → API` وضعه في `VITE_N8N_API_KEY` (يتطلب إعادة بناء الصورة).
 
-## سيناريوهات n8n الجاهزة
+## التطوير المحلي
 
-ضمن مجلد `n8n-workflows/` ستجد ملف JSON واحد كنموذج (`summarize.json`).
-استورده في n8n، عدّل اسم النموذج إن لزم، فعّل الـ workflow، وسيعمل الزر
-المقابل في الصفحة فوراً.
+```bash
+bun install
+bun run dev    # http://localhost:8080
+```
 
-أنشئ workflows مماثلة للأزرار الأخرى بمسارات Webhook:
-`classify`, `extract`, `qa`.
+## المعمارية
 
-## ملاحظات
+```
+المتصفح (ai.localhost)
+        │
+     Traefik :80
+        │
+   حاوية local-ai-ui (Nginx :8080)
+        │
+   ملفات React الثابتة تستدعي من المتصفح مباشرة:
+     • http://localhost:11434         → Ollama
+     • http://n8n.localhost           → n8n
+     • http://supabase.localhost      → Supabase
+```
 
-- الصفحة تعمل بكامل وظائفها فقط داخل بيئة السيرفر حيث الخدمات متاحة على
-  الشبكة الداخلية. في معاينة Lovable ستظهر كل البطاقات بحالة "غير متاح"
-  وهذا متوقّع.
-- لا توجد تبعيات شبكية خارجية أثناء التشغيل (الخطوط مضمّنة عبر Google
-  Fonts فقط — يمكن استبدالها بنسخة محلية إذا أردت عزلاً تاماً).
+لا يوجد باك-إند داخل الحاوية — مجرد ملفات ثابتة. هذا يجعل الصورة صغيرة
+(< 30MB) والنشر بدون أي تعقيدات SSR أو Worker.
