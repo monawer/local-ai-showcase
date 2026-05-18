@@ -20,12 +20,12 @@ services:
       # Ollama مثبّت على Windows host (خارج Docker) — نستخدم host.docker.internal
       OLLAMA_URL: "http://host.docker.internal:11434"
       # n8n داخل Docker — استخدم اسم الحاوية الداخلي والمنفذ الداخلي 5678
-      N8N_URL: "http://n8n:5678"
-      N8N_WEBHOOK_BASE: "http://n8n:5678/webhook"
+      N8N_URL: "http://n8n.localhost"
+      N8N_WEBHOOK_BASE: "http://n8n.localhost"
       N8N_API_KEY: "${N8N_API_KEY:-}"
       # Supabase Kong داخل Docker
-      SUPABASE_URL: "http://supabase-kong:8000"
-      SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
+   #   SUPABASE_URL: "http://supabase-kong:8000"
+    #  SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
     # يسمح للحاوية بالوصول إلى Ollama على Windows host
     extra_hosts:
       - "host.docker.internal:host-gateway"
