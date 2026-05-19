@@ -89,9 +89,13 @@ function ServiceRow({
           <Input
             value={cfg.url}
             onChange={(e) => setField("url", e.target.value)}
-            placeholder="http://..."
+            placeholder="/proxy/... أو http://..."
             dir="ltr"
           />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            المسارات النسبية مثل <code>/proxy/{kind}</code> تمرّ عبر nginx (نفس
+            الأصل، بلا CORS). الروابط المطلقة تتطلّب ضبط CORS في الخدمة نفسها.
+          </p>
         </div>
 
         {kind === "n8n" && (

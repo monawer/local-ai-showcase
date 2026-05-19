@@ -40,20 +40,22 @@ const STORAGE_KEY = "lovable.settings.v1";
 const envDefaults: Settings = {
   services: {
     ollama: {
-      url: import.meta.env.VITE_OLLAMA_URL ?? "http://localhost:11434",
+      // افتراضيًا نمرّ عبر بروكسي nginx (same-origin) لتجنّب CORS
+      url: import.meta.env.VITE_OLLAMA_URL ?? "/proxy/ollama",
       enabled: true,
     },
     n8n: {
-      url: import.meta.env.VITE_N8N_URL ?? "http://n8n.localhost",
+      url: import.meta.env.VITE_N8N_URL ?? "/proxy/n8n",
       webhookBase:
         import.meta.env.VITE_N8N_WEBHOOK_BASE ??
-        import.meta.env.VITE_N8N_URL ??
-        "http://n8n.localhost",
+        (import.meta.env.VITE_N8N_URL
+          ? `${import.meta.env.VITE_N8N_URL}/webhook`
+          : "/proxy/n8n/webhook"),
       apiKey: import.meta.env.VITE_N8N_API_KEY ?? "",
       enabled: true,
     },
     supabase: {
-      url: import.meta.env.VITE_SUPABASE_URL ?? "http://supabase.localhost",
+      url: import.meta.env.VITE_SUPABASE_URL ?? "/proxy/supabase",
       anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
       enabled: true,
     },
