@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { serviceConfig, fetchWithTimeout } from "@/lib/service-config";
+import { useSettings } from "@/context/SettingsContext";
 
 export type OllamaModel = { name: string; size: number; modified_at: string };
 
@@ -26,8 +27,9 @@ export type SupabaseStatus = {
 };
 
 export function useOllamaStatus() {
+  const { settings } = useSettings();
   return useQuery<OllamaStatus>({
-    queryKey: ["status", "ollama"],
+    queryKey: ["status", "ollama", settings.services.ollama.url],
     queryFn: async () => {
       try {
         const r = await fetchWithTimeout(`${serviceConfig.ollamaUrl}/api/tags`);
@@ -44,13 +46,15 @@ export function useOllamaStatus() {
         };
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: settings.refreshIntervalSec * 1000,
+    enabled: settings.services.ollama.enabled,
   });
 }
 
 export function useN8nStatus() {
+  const { settings } = useSettings();
   return useQuery<N8nStatus>({
-    queryKey: ["status", "n8n"],
+    queryKey: ["status", "n8n", settings.services.n8n.url, settings.services.n8n.apiKey],
     queryFn: async () => {
       try {
         const headers: Record<string, string> = {};
@@ -94,13 +98,15 @@ export function useN8nStatus() {
         };
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: settings.refreshIntervalSec * 1000,
+    enabled: settings.services.n8n.enabled,
   });
 }
 
 export function useSupabaseStatus() {
+  const { settings } = useSettings();
   return useQuery<SupabaseStatus>({
-    queryKey: ["status", "supabase"],
+    queryKey: ["status", "supabase", settings.services.supabase.url],
     queryFn: async () => {
       try {
         const r = await fetchWithTimeout(
@@ -119,6 +125,7 @@ export function useSupabaseStatus() {
         };
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: settings.refreshIntervalSec * 1000,
+    enabled: settings.services.supabase.enabled,
   });
 }
