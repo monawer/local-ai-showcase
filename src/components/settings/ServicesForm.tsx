@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/context/SettingsContext";
-import { fetchWithTimeout } from "@/lib/service-config";
+import { fetchWithTimeout, joinUrl } from "@/lib/service-config";
 
 type TestResult = { ok: boolean; message: string } | null;
 
@@ -25,7 +25,7 @@ async function testService(
     }
     if (kind === "supabase") path = "/auth/v1/health";
 
-    const r = await fetchWithTimeout(`${url}${path}`, { headers });
+    const r = await fetchWithTimeout(joinUrl(url, path), { headers });
     if (r.ok) return { ok: true, message: `OK · HTTP ${r.status}` };
     if (r.status === 401)
       return { ok: false, message: "401 — مفتاح API مفقود أو خاطئ" };
