@@ -37,6 +37,18 @@ export type Settings = {
 
 const STORAGE_KEY = "lovable.settings.v1";
 
+function migrateLegacyUrl(value: string | undefined, fallback: string) {
+  const normalized = (value || fallback).replace(/\/+$/, "");
+  const map: Record<string, string> = {
+    "http://localhost:11434": "/proxy/ollama",
+    "http://127.0.0.1:11434": "/proxy/ollama",
+    "http://n8n.localhost": "/proxy/n8n",
+    "http://n8n.localhost/webhook": "/proxy/n8n/webhook",
+    "http://supabase.localhost": "/proxy/supabase",
+  };
+  return map[normalized] ?? normalized;
+}
+
 const envDefaults: Settings = {
   services: {
     ollama: {
@@ -91,14 +103,21 @@ function loadSettings(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return envDefaults;
     const parsed = JSON.parse(raw) as Partial<Settings>;
+    const ollama = { ...envDefaults.services.ollama, ...parsed.services?.ollama };
+    const n8n = { ...envDefaults.services.n8n, ...parsed.services?.n8n };
+    const supabase = {
+      ...envDefaults.services.supabase,
+      ...parsed.services?.supabase,
+    };
     return {
       services: {
-        ollama: { ...envDefaults.services.ollama, ...parsed.services?.ollama },
-        n8n: { ...envDefaults.services.n8n, ...parsed.services?.n8n },
-        supabase: {
-          ...envDefaults.services.supabase,
-          ...parsed.services?.supabase,
+        ollama: { ...ollama, url: migrateLegacyUrl(ollama.url, "/proxy/ollama") },
+        n8n: {
+          ...n8n,
+          url: migrateLegacyUrl(n8n.url, "/proxy/n8n"),
+          webhookBase: migrateLegacyUrl(n8n.webhookBase, "/proxy/n8n/webhook"),
         },
+        supabase: { ...supabase, url: migrateLegacyUrl(supabase.url, "/proxy/supabase") },
       },
       customLinks: parsed.customLinks ?? envDefaults.customLinks,
       refreshIntervalSec:
