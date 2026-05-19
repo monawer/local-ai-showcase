@@ -1,22 +1,41 @@
-/**
- * Client-side service URLs.
- * Configured at BUILD time via VITE_* env vars (see Dockerfile ARGs).
- * Defaults are tuned for Docker Desktop on Windows with Traefik on .localhost.
- */
+import { getSettingsSnapshot } from "@/context/SettingsContext";
 
-export const serviceConfig = {
-  ollamaUrl:
-    import.meta.env.VITE_OLLAMA_URL ?? "http://localhost:11434",
-  n8nUrl: import.meta.env.VITE_N8N_URL ?? "http://n8n.localhost",
-  n8nWebhookBase:
-    import.meta.env.VITE_N8N_WEBHOOK_BASE ??
-    import.meta.env.VITE_N8N_URL ??
-    "http://n8n.localhost",
-  n8nApiKey: import.meta.env.VITE_N8N_API_KEY ?? "",
-  supabaseUrl:
-    import.meta.env.VITE_SUPABASE_URL ?? "http://supabase.localhost",
-  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
-};
+/**
+ * Live, settings-aware service config.
+ * Values come from localStorage (via SettingsContext) and fall back to VITE_* envs.
+ * Access via the `serviceConfig` proxy — it always returns the latest values.
+ */
+export const serviceConfig = new Proxy(
+  {} as {
+    ollamaUrl: string;
+    n8nUrl: string;
+    n8nWebhookBase: string;
+    n8nApiKey: string;
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+  },
+  {
+    get(_t, prop) {
+      const s = getSettingsSnapshot();
+      switch (prop) {
+        case "ollamaUrl":
+          return s.services.ollama.url;
+        case "n8nUrl":
+          return s.services.n8n.url;
+        case "n8nWebhookBase":
+          return s.services.n8n.webhookBase || s.services.n8n.url;
+        case "n8nApiKey":
+          return s.services.n8n.apiKey ?? "";
+        case "supabaseUrl":
+          return s.services.supabase.url;
+        case "supabaseAnonKey":
+          return s.services.supabase.anonKey ?? "";
+        default:
+          return undefined;
+      }
+    },
+  },
+);
 
 export async function fetchWithTimeout(
   url: string,
