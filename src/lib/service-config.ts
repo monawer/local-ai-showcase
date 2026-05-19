@@ -1,5 +1,12 @@
 import { getSettingsSnapshot } from "@/context/SettingsContext";
 
+export function joinUrl(base: string, path: string) {
+  const cleanBase = base.trim().replace(/\/+$/, "");
+  const cleanPath = path.trim().replace(/^\/+/, "");
+  if (!cleanBase) return `/${cleanPath}`;
+  return `${cleanBase}/${cleanPath}`;
+}
+
 /**
  * Live, settings-aware service config.
  * Values come from localStorage (via SettingsContext) and fall back to VITE_* envs.
@@ -23,7 +30,7 @@ export const serviceConfig = new Proxy(
         case "n8nUrl":
           return s.services.n8n.url;
         case "n8nWebhookBase":
-          return s.services.n8n.webhookBase || s.services.n8n.url;
+          return s.services.n8n.webhookBase || joinUrl(s.services.n8n.url, "webhook");
         case "n8nApiKey":
           return s.services.n8n.apiKey ?? "";
         case "supabaseUrl":
