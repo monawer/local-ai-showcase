@@ -2,6 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { serviceConfig, fetchWithTimeout, joinUrl } from "@/lib/service-config";
 import { useSettings } from "@/context/SettingsContext";
 
+export type OpenWebUIStatus = {
+  ok: boolean;
+  error?: string;
+};
+
 export type OllamaModel = { name: string; size: number; modified_at: string };
 
 export type OllamaStatus = {
@@ -124,5 +129,24 @@ export function useSupabaseStatus() {
     },
     refetchInterval: settings.refreshIntervalSec * 1000,
     enabled: settings.services.supabase.enabled,
+  });
+}
+
+export function useOpenWebUIStatus() {
+  const { settings } = useSettings();
+  return useQuery<OpenWebUIStatus>({
+    queryKey: ["status", "openwebui"],
+    queryFn: async () => {
+      try {
+        const r = await fetchWithTimeout("/proxy/webui/");
+        return { ok: r.ok || r.status === 401 };
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : "غير متاح",
+        };
+      }
+    },
+    refetchInterval: settings.refreshIntervalSec * 1000,
   });
 }
