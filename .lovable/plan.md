@@ -1,55 +1,65 @@
-## الفكرة
-إنشاء صفحة `/settings` تتيح للمستخدم:
-1. تعديل روابط الخدمات (Ollama, n8n, Supabase) ومفاتيحها من المتصفح مباشرة بدون إعادة بناء Docker.
-2. إضافة/حذف أزرار روابط مخصصة (مثل Portainer, Grafana, Traefik Dashboard…) تظهر في الصفحة الرئيسية والـ Header.
-3. اختبار اتصال كل خدمة بزر "Test Connection" لمعرفة السبب فورًا (CORS / 401 / 404 …).
+# إصلاح أخطاء CORS عبر بروكسي على نفس الأصل
 
-## التخزين
-- استخدام `localStorage` تحت مفتاح واحد `lovable.settings.v1`.
-- إنشاء `SettingsContext` يقرأ القيم عند الإقلاع ويُغلّب قيم localStorage على قيم `import.meta.env` (تصبح القيم في Dockerfile مجرد افتراضيات).
-- تحديث `src/lib/service-config.ts` ليقرأ من الـ context بدلاً من `import.meta.env` مباشرة، مع helper `getServiceConfig()` للاستخدام في hooks.
+## السبب الجذري
+المتصفح يفتح التطبيق من `http://ai.localhost` لكن الكود يطلب:
+- `http://localhost:11434` (Ollama)
+- `http://n8n.localhost`
+- `http://supabase.localhost`
 
-## الصفحات والمكوّنات الجديدة
-```text
-src/
-  pages/Settings.tsx                ← الصفحة الجديدة (تبويبات)
-  context/SettingsContext.tsx       ← state + persistence
-  components/settings/
-    ServicesForm.tsx                ← Ollama / n8n / Supabase (URL + key + test)
-    CustomLinksManager.tsx          ← قائمة + إضافة/حذف/ترتيب
-    AdvancedTab.tsx                 ← Export/Import JSON + Reset
-  components/landing/QuickLinks.tsx ← يعرض الروابط المخصصة في الصفحة الرئيسية
+كلٌّ منها أصل مختلف، فيرفضها المتصفح ما لم يُضبط CORS بدقّة في كل خدمة. الحل الأنظف: تمرير الطلبات عبر nginx الخاص بحاوية الواجهة، فتصبح كلها من نفس الأصل `ai.localhost` ولا حاجة لأي CORS.
+
+## التغييرات
+
+### 1) `nginx.conf` — إضافة مواقع بروكسي
+
+```nginx
+# Ollama على مضيف ويندوز
+location /proxy/ollama/ {
+  proxy_pass http://host.docker.internal:11434/;
+  proxy_set_header Host localhost:11434;
+  proxy_http_version 1.1;
+  proxy_buffering off;
+}
+
+# n8n عبر Traefik داخل نفس شبكة docker
+location /proxy/n8n/ {
+  resolver 127.0.0.11 valid=30s;
+  proxy_pass http://n8n.localhost/;
+  proxy_set_header Host n8n.localhost;
+}
+
+# Supabase Kong
+location /proxy/supabase/ {
+  resolver 127.0.0.11 valid=30s;
+  proxy_pass http://supabase.localhost/;
+  proxy_set_header Host supabase.localhost;
+}
 ```
 
-## بنية الإعدادات
-```ts
-type ServiceCfg = { url: string; apiKey?: string; enabled: boolean };
-type CustomLink = { id: string; label: string; url: string; icon?: string; openInNewTab: boolean };
-type Settings = {
-  services: {
-    ollama: ServiceCfg;
-    n8n: ServiceCfg & { webhookBase?: string };
-    supabase: ServiceCfg & { anonKey?: string };
-  };
-  customLinks: CustomLink[];
-  refreshIntervalSec: number;   // ServicesDashboard
-};
-```
+### 2) `docker-compose.yml`
+- إضافة `extra_hosts: ["host.docker.internal:host-gateway"]` للوصول إلى Ollama على ويندوز.
+- تغيير الافتراضيات إلى مسارات نسبية:
+  - `VITE_OLLAMA_URL=/proxy/ollama`
+  - `VITE_N8N_URL=/proxy/n8n`
+  - `VITE_N8N_WEBHOOK_BASE=/proxy/n8n/webhook`
+  - `VITE_SUPABASE_URL=/proxy/supabase`
 
-## التبويبات داخل `/settings`
-1. **الخدمات** – نموذج لكل خدمة + زر "اختبار" يستدعي endpoint الفحص ويُظهر النتيجة (OK / CORS / 401…).
-2. **الروابط السريعة** – جدول إضافة/تعديل/حذف مع معاينة الأيقونة (اختيار من lucide).
-3. **عام** – فترة التحديث + Export/Import JSON + Reset.
+### 3) `src/context/SettingsContext.tsx`
+- تعديل `envDefaults` لاستخدام نفس المسارات النسبية افتراضيًا (`/proxy/ollama`، `/proxy/n8n`، `/proxy/supabase`) حتى يعمل التطبيق فورًا دون أي إعداد يدوي من المستخدم.
 
-## دمج مع الواجهة
-- `Header`/`SiteFooter`: إضافة أيقونة ⚙️ تذهب إلى `/settings`.
-- `Hero` أو قسم جديد فوق `ServicesDashboard`: عرض `QuickLinks` من `customLinks`.
-- `ServicesDashboard` و hooks في `useServiceStatus` تقرأ من `SettingsContext` لتلتقط أي تعديل لحظيًا.
+### 4) `src/pages/Settings.tsx` / `ServicesForm.tsx`
+- إضافة شرح صغير تحت كل حقل URL يوضح أن القيمة الافتراضية تستخدم بروكسي داخلي ولا تحتاج CORS، وأن وضع URL مطلق (مثل `http://n8n.localhost`) يتطلب ضبط CORS في الخدمة.
 
-## خدمات مقترحة إضافيًا (كقوالب جاهزة في "إضافة رابط")
-Portainer, Traefik Dashboard, Grafana, Prometheus, Qdrant, Open WebUI, MinIO, Uptime Kuma.
+### 5) `src/lib/service-config.ts`
+- لا تغيير في المنطق، فقط التأكد أن المسارات النسبية تُمرَّر كما هي إلى `fetch` (يتعامل معها المتصفح ضمن نفس الأصل تلقائيًا).
 
-## ملاحظات تقنية
-- لا حاجة لتعديل Dockerfile؛ القيم في `VITE_*` تبقى افتراضيات أولية فقط.
-- المفاتيح الحساسة (n8n API key, supabase anon) تُخزَّن في localStorage للمتصفح المحلي فقط — تنبيه واضح في الصفحة.
-- إضافة Route جديد في `src/App.tsx`: `<Route path="/settings" element={<Settings />} />`.
+## النتيجة
+- من `http://ai.localhost` ستنجح فحوصات الحالة وزر "اختبار الاتصال" لأن كل الطلبات تصبح `same-origin`.
+- لا حاجة لتعديل `OLLAMA_ORIGINS` أو `N8N_CORS_ALLOWED_ORIGINS`.
+- معاينة Lovable السحابية ستظل تفشل (متوقَّع — لأنها لا تستطيع الوصول لشبكتك المحلية)، وسنُبقي تنبيهًا واضحًا في صفحة الإعدادات.
+
+## ملفات ستُعدَّل
+- `nginx.conf`
+- `docker-compose.yml`
+- `src/context/SettingsContext.tsx`
+- `src/components/settings/ServicesForm.tsx` (نص توضيحي فقط)
