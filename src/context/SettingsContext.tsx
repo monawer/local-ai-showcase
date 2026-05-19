@@ -49,6 +49,15 @@ function migrateLegacyUrl(value: string | undefined, fallback: string) {
   return map[normalized] ?? normalized;
 }
 
+function migrateLegacyWebhookBase(value: string | undefined) {
+  const normalized = (value || "/proxy/n8n/webhook").replace(/\/+$/, "");
+  const map: Record<string, string> = {
+    "http://n8n.localhost": "/proxy/n8n/webhook",
+    "http://n8n.localhost/webhook": "/proxy/n8n/webhook",
+  };
+  return map[normalized] ?? normalized;
+}
+
 const envDefaults: Settings = {
   services: {
     ollama: {
@@ -115,7 +124,7 @@ function loadSettings(): Settings {
         n8n: {
           ...n8n,
           url: migrateLegacyUrl(n8n.url, "/proxy/n8n"),
-          webhookBase: migrateLegacyUrl(n8n.webhookBase, "/proxy/n8n/webhook"),
+          webhookBase: migrateLegacyWebhookBase(n8n.webhookBase),
         },
         supabase: { ...supabase, url: migrateLegacyUrl(supabase.url, "/proxy/supabase") },
       },
