@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { serviceConfig } from "@/lib/service-config";
+import { joinUrl, serviceConfig } from "@/lib/service-config";
 
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
@@ -36,7 +36,7 @@ export function useOllamaChat(model: string) {
       let tokenCount = 0;
 
       try {
-        const r = await fetch(`${serviceConfig.ollamaUrl}/api/chat`, {
+        const r = await fetch(joinUrl(serviceConfig.ollamaUrl, "api/chat"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
