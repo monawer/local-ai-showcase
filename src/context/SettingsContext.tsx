@@ -52,6 +52,7 @@ function migrateLegacyUrl(value: string | undefined, fallback: string) {
 function migrateLegacyWebhookBase(value: string | undefined) {
   const normalized = (value || "/proxy/n8n/webhook").replace(/\/+$/, "");
   const map: Record<string, string> = {
+    "/proxy/n8n": "/proxy/n8n/webhook",
     "http://n8n.localhost": "/proxy/n8n/webhook",
     "http://n8n.localhost/webhook": "/proxy/n8n/webhook",
   };
