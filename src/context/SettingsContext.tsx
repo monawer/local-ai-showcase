@@ -126,8 +126,7 @@ function loadSettings(): Settings {
         supabase: { ...supabase, url: migrateLegacyUrl(supabase.url, "/proxy/supabase") },
       },
       customLinks: parsed.customLinks ?? envDefaults.customLinks,
-      refreshIntervalSec:
-        parsed.refreshIntervalSec ?? envDefaults.refreshIntervalSec,
+      refreshIntervalSec: parsed.refreshIntervalSec ?? envDefaults.refreshIntervalSec,
     };
   } catch {
     return envDefaults;
@@ -166,8 +165,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const setSettings = useCallback((s: Settings) => setSettingsState(s), []);
   const update = useCallback(
-    (patch: (s: Settings) => Settings) =>
-      setSettingsState((prev) => patch(prev)),
+    (patch: (s: Settings) => Settings) => setSettingsState((prev) => patch(prev)),
     [],
   );
   const reset = useCallback(() => {
@@ -180,11 +178,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [settings, setSettings, update, reset],
   );
 
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings() {

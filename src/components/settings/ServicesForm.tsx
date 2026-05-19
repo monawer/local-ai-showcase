@@ -27,10 +27,8 @@ async function testService(
 
     const r = await fetchWithTimeout(joinUrl(url, path), { headers });
     if (r.ok) return { ok: true, message: `OK · HTTP ${r.status}` };
-    if (r.status === 401)
-      return { ok: false, message: "401 — مفتاح API مفقود أو خاطئ" };
-    if (r.status === 403)
-      return { ok: false, message: "403 — CORS مرفوض (فعّل OLLAMA_ORIGINS=*)" };
+    if (r.status === 401) return { ok: false, message: "401 — مفتاح API مفقود أو خاطئ" };
+    if (r.status === 403) return { ok: false, message: "403 — CORS مرفوض (فعّل OLLAMA_ORIGINS=*)" };
     return { ok: false, message: `HTTP ${r.status}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -43,22 +41,13 @@ async function testService(
   }
 }
 
-function ServiceRow({
-  title,
-  kind,
-}: {
-  title: string;
-  kind: "ollama" | "n8n" | "supabase";
-}) {
+function ServiceRow({ title, kind }: { title: string; kind: "ollama" | "n8n" | "supabase" }) {
   const { settings, update } = useSettings();
   const cfg = settings.services[kind];
   const [result, setResult] = useState<TestResult>(null);
   const [testing, setTesting] = useState(false);
 
-  const setField = <K extends keyof typeof cfg>(
-    key: K,
-    value: (typeof cfg)[K],
-  ) => {
+  const setField = <K extends keyof typeof cfg>(key: K, value: (typeof cfg)[K]) => {
     update((s) => ({
       ...s,
       services: {
@@ -93,8 +82,8 @@ function ServiceRow({
             dir="ltr"
           />
           <p className="mt-1 text-[11px] text-muted-foreground">
-            المسارات النسبية مثل <code>/proxy/{kind}</code> تمرّ عبر nginx (نفس
-            الأصل، بلا CORS). الروابط المطلقة تتطلّب ضبط CORS في الخدمة نفسها.
+            المسارات النسبية مثل <code>/proxy/{kind}</code> تمرّ عبر nginx (نفس الأصل، بلا CORS).
+            الروابط المطلقة تتطلّب ضبط CORS في الخدمة نفسها.
           </p>
         </div>
 
@@ -104,12 +93,7 @@ function ServiceRow({
               <Label className="text-xs">Webhook Base (اختياري)</Label>
               <Input
                 value={(cfg as typeof cfg & { webhookBase?: string }).webhookBase ?? ""}
-                onChange={(e) =>
-                  setField(
-                    "webhookBase" as never,
-                    e.target.value as never,
-                  )
-                }
+                onChange={(e) => setField("webhookBase" as never, e.target.value as never)}
                 dir="ltr"
               />
             </div>
@@ -131,9 +115,7 @@ function ServiceRow({
             <Input
               type="password"
               value={(cfg as typeof cfg & { anonKey?: string }).anonKey ?? ""}
-              onChange={(e) =>
-                setField("anonKey" as never, e.target.value as never)
-              }
+              onChange={(e) => setField("anonKey" as never, e.target.value as never)}
               dir="ltr"
             />
           </div>
@@ -161,11 +143,7 @@ function ServiceRow({
                 result.ok ? "text-success" : "text-destructive"
               }`}
             >
-              {result.ok ? (
-                <CheckCircle2 className="h-3 w-3" />
-              ) : (
-                <XCircle className="h-3 w-3" />
-              )}
+              {result.ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
               {result.message}
             </span>
           )}
@@ -182,8 +160,7 @@ export function ServicesForm() {
       <ServiceRow title="n8n" kind="n8n" />
       <ServiceRow title="Supabase" kind="supabase" />
       <p className="text-xs text-muted-foreground">
-        ⚠ المفاتيح تُخزَّن في localStorage في متصفحك المحلي فقط — لا تستخدم هذه
-        الصفحة على جهاز عام.
+        ⚠ المفاتيح تُخزَّن في localStorage في متصفحك المحلي فقط — لا تستخدم هذه الصفحة على جهاز عام.
       </p>
     </div>
   );
