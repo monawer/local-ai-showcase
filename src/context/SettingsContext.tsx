@@ -37,25 +37,43 @@ export type Settings = {
 
 const STORAGE_KEY = "lovable.settings.v1";
 
+function migrateLegacyUrl(value: string | undefined, fallback: string) {
+  const normalized = (value || fallback).replace(/\/+$/, "");
+  const map: Record<string, string> = {
+    "http://localhost:11434": "/proxy/ollama",
+    "http://127.0.0.1:11434": "/proxy/ollama",
+    "http://n8n.localhost": "/proxy/n8n",
+    "http://n8n.localhost/webhook": "/proxy/n8n/webhook",
+    "http://supabase.localhost": "/proxy/supabase",
+  };
+  return map[normalized] ?? normalized;
+}
+
+function migrateLegacyWebhookBase(value: string | undefined) {
+  const normalized = (value || "/proxy/n8n/webhook").replace(/\/+$/, "");
+  const map: Record<string, string> = {
+    "/proxy/n8n": "/proxy/n8n/webhook",
+    "http://n8n.localhost": "/proxy/n8n/webhook",
+    "http://n8n.localhost/webhook": "/proxy/n8n/webhook",
+  };
+  return map[normalized] ?? normalized;
+}
+
 const envDefaults: Settings = {
   services: {
     ollama: {
       // افتراضيًا نمرّ عبر بروكسي nginx (same-origin) لتجنّب CORS
-      url: import.meta.env.VITE_OLLAMA_URL ?? "/proxy/ollama",
+      url: migrateLegacyUrl(import.meta.env.VITE_OLLAMA_URL, "/proxy/ollama"),
       enabled: true,
     },
     n8n: {
-      url: import.meta.env.VITE_N8N_URL ?? "/proxy/n8n",
-      webhookBase:
-        import.meta.env.VITE_N8N_WEBHOOK_BASE ??
-        (import.meta.env.VITE_N8N_URL
-          ? `${import.meta.env.VITE_N8N_URL}/webhook`
-          : "/proxy/n8n/webhook"),
+      url: migrateLegacyUrl(import.meta.env.VITE_N8N_URL, "/proxy/n8n"),
+      webhookBase: migrateLegacyWebhookBase(import.meta.env.VITE_N8N_WEBHOOK_BASE),
       apiKey: import.meta.env.VITE_N8N_API_KEY ?? "",
       enabled: true,
     },
     supabase: {
-      url: import.meta.env.VITE_SUPABASE_URL ?? "/proxy/supabase",
+      url: migrateLegacyUrl(import.meta.env.VITE_SUPABASE_URL, "/proxy/supabase"),
       anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
       enabled: true,
     },
@@ -91,18 +109,24 @@ function loadSettings(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return envDefaults;
     const parsed = JSON.parse(raw) as Partial<Settings>;
+    const ollama = { ...envDefaults.services.ollama, ...parsed.services?.ollama };
+    const n8n = { ...envDefaults.services.n8n, ...parsed.services?.n8n };
+    const supabase = {
+      ...envDefaults.services.supabase,
+      ...parsed.services?.supabase,
+    };
     return {
       services: {
-        ollama: { ...envDefaults.services.ollama, ...parsed.services?.ollama },
-        n8n: { ...envDefaults.services.n8n, ...parsed.services?.n8n },
-        supabase: {
-          ...envDefaults.services.supabase,
-          ...parsed.services?.supabase,
+        ollama: { ...ollama, url: migrateLegacyUrl(ollama.url, "/proxy/ollama") },
+        n8n: {
+          ...n8n,
+          url: migrateLegacyUrl(n8n.url, "/proxy/n8n"),
+          webhookBase: migrateLegacyWebhookBase(n8n.webhookBase),
         },
+        supabase: { ...supabase, url: migrateLegacyUrl(supabase.url, "/proxy/supabase") },
       },
       customLinks: parsed.customLinks ?? envDefaults.customLinks,
-      refreshIntervalSec:
-        parsed.refreshIntervalSec ?? envDefaults.refreshIntervalSec,
+      refreshIntervalSec: parsed.refreshIntervalSec ?? envDefaults.refreshIntervalSec,
     };
   } catch {
     return envDefaults;
@@ -141,8 +165,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const setSettings = useCallback((s: Settings) => setSettingsState(s), []);
   const update = useCallback(
-    (patch: (s: Settings) => Settings) =>
-      setSettingsState((prev) => patch(prev)),
+    (patch: (s: Settings) => Settings) => setSettingsState((prev) => patch(prev)),
     [],
   );
   const reset = useCallback(() => {
@@ -155,11 +178,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [settings, setSettings, update, reset],
   );
 
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings() {

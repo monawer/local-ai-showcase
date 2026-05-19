@@ -17,11 +17,11 @@ docker compose up -d
 ضع القيم في ملف `.env` بجوار `docker-compose.yml` (انظر `.env.example`):
 
 ```env
-VITE_OLLAMA_URL=http://localhost:11434
-VITE_N8N_URL=http://n8n.localhost
-VITE_N8N_WEBHOOK_BASE=http://n8n.localhost
+VITE_OLLAMA_URL=/proxy/ollama
+VITE_N8N_URL=/proxy/n8n
+VITE_N8N_WEBHOOK_BASE=/proxy/n8n/webhook
 VITE_N8N_API_KEY=
-VITE_SUPABASE_URL=http://supabase.localhost
+VITE_SUPABASE_URL=/proxy/supabase
 VITE_SUPABASE_ANON_KEY=
 ```
 
@@ -60,7 +60,7 @@ VITE_SUPABASE_ANON_KEY=
 
 ```bash
 docker logs -f local-ai-ui
-docker exec local-ai-ui sh -c "grep -o 'http://[^\"]*' /usr/share/nginx/html/assets/*.js | sort -u"
+docker exec local-ai-ui sh -c "grep -o '/proxy/[A-Za-z0-9_/.-]*' /usr/share/nginx/html/assets/*.js | sort -u"
 ```
 
 ثم افتح: <http://ai.localhost>
@@ -92,11 +92,11 @@ bun run dev    # http://localhost:8080
         │
    حاوية local-ai-ui (Nginx :8080)
         │
-   ملفات React الثابتة تستدعي من المتصفح مباشرة:
-     • http://localhost:11434         → Ollama
-     • http://n8n.localhost           → n8n
-     • http://supabase.localhost      → Supabase
+    ملفات React الثابتة تستدعي نفس الأصل:
+      • /proxy/ollama                  → Ollama
+      • /proxy/n8n                     → n8n
+      • /proxy/supabase                → Supabase
 ```
 
-لا يوجد باك-إند داخل الحاوية — مجرد ملفات ثابتة. هذا يجعل الصورة صغيرة
-(< 30MB) والنشر بدون أي تعقيدات SSR أو Worker.
+لا يوجد باك-إند داخل الحاوية — فقط Nginx يخدم ملفات React ويعمل كبروكسي محلي
+للخدمات لتجنب CORS من المتصفح.

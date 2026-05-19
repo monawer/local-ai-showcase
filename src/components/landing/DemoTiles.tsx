@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { serviceConfig } from "@/lib/service-config";
+import { joinUrl, serviceConfig } from "@/lib/service-config";
 
 type Demo = {
   id: string;
@@ -69,7 +69,7 @@ function DemoCard({ demo }: { demo: Demo }) {
     setError(null);
     setResult(null);
     try {
-      const url = `${serviceConfig.n8nWebhookBase}/webhook/${demo.webhook}`;
+      const url = joinUrl(serviceConfig.n8nWebhookBase, demo.webhook);
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,7 +89,7 @@ function DemoCard({ demo }: { demo: Demo }) {
         setResult(
           typeof j === "string"
             ? j
-            : j.output ?? j.result ?? j.text ?? JSON.stringify(j, null, 2),
+            : (j.output ?? j.result ?? j.text ?? JSON.stringify(j, null, 2)),
         );
       } catch {
         setResult(text);
@@ -110,9 +110,7 @@ function DemoCard({ demo }: { demo: Demo }) {
         </div>
         <h3 className="font-semibold">{demo.title}</h3>
       </div>
-      <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-        {demo.description}
-      </p>
+      <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{demo.description}</p>
 
       <Textarea
         value={input}
@@ -122,13 +120,7 @@ function DemoCard({ demo }: { demo: Demo }) {
         className="bg-background/40 text-sm resize-none mb-3"
       />
 
-      <Button
-        onClick={run}
-        disabled={loading}
-        size="sm"
-        variant="secondary"
-        className="self-start"
-      >
+      <Button onClick={run} disabled={loading} size="sm" variant="secondary" className="self-start">
         {loading ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin ms-2" />
@@ -167,10 +159,9 @@ export function DemoTiles() {
             سيناريوهات جاهزة عبر n8n
           </h2>
           <p className="mt-3 text-muted-foreground">
-            كل بطاقة تستدعي workflow في n8n يستخدم Ollama و Supabase لإتمام
-            المهمة. تأكد من استيراد ملفات الـ workflows من مجلد{" "}
-            <code className="font-mono text-foreground/90">n8n-workflows/</code>{" "}
-            وتفعيلها.
+            كل بطاقة تستدعي workflow في n8n يستخدم Ollama و Supabase لإتمام المهمة. تأكد من استيراد
+            ملفات الـ workflows من مجلد{" "}
+            <code className="font-mono text-foreground/90">n8n-workflows/</code> وتفعيلها.
           </p>
         </div>
 

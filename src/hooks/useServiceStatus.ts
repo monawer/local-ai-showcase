@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { serviceConfig, fetchWithTimeout } from "@/lib/service-config";
+import { serviceConfig, fetchWithTimeout, joinUrl } from "@/lib/service-config";
 import { useSettings } from "@/context/SettingsContext";
 
 export type OllamaModel = { name: string; size: number; modified_at: string };
@@ -32,7 +32,7 @@ export function useOllamaStatus() {
     queryKey: ["status", "ollama", settings.services.ollama.url],
     queryFn: async () => {
       try {
-        const r = await fetchWithTimeout(`${serviceConfig.ollamaUrl}/api/tags`);
+        const r = await fetchWithTimeout(joinUrl(serviceConfig.ollamaUrl, "api/tags"));
         if (!r.ok) {
           return { ok: false, error: `HTTP ${r.status}`, models: [] };
         }
@@ -61,10 +61,9 @@ export function useN8nStatus() {
         if (serviceConfig.n8nApiKey) {
           headers["X-N8N-API-KEY"] = serviceConfig.n8nApiKey;
         }
-        const r = await fetchWithTimeout(
-          `${serviceConfig.n8nUrl}/api/v1/workflows`,
-          { headers },
-        );
+        const r = await fetchWithTimeout(joinUrl(serviceConfig.n8nUrl, "api/v1/workflows"), {
+          headers,
+        });
         if (!r.ok) {
           // n8n مفعّل لكن بدون API key — نعتبره "جزئي"
           return {
@@ -109,9 +108,7 @@ export function useSupabaseStatus() {
     queryKey: ["status", "supabase", settings.services.supabase.url],
     queryFn: async () => {
       try {
-        const r = await fetchWithTimeout(
-          `${serviceConfig.supabaseUrl}/auth/v1/health`,
-        );
+        const r = await fetchWithTimeout(joinUrl(serviceConfig.supabaseUrl, "auth/v1/health"));
         return {
           ok: r.ok,
           status: r.status,
