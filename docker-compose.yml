@@ -26,16 +26,21 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_OLLAMA_URL: ${VITE_OLLAMA_URL:-http://localhost:11434}
-        VITE_N8N_URL: ${VITE_N8N_URL:-http://n8n.localhost}
-        VITE_N8N_WEBHOOK_BASE: ${VITE_N8N_WEBHOOK_BASE:-http://n8n.localhost}
-        VITE_N8N_API_KEY: ${VITE_N8N_API_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMTk3NmNkMC1kNzgzLTRiMDQtYjM1YS0zY2Y0OTI2MGI3NWQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiNmE4OTNlZTktMDBiNS00ZmMzLWFjZWYtYTAwZWU5MWIxMDZiIiwiaWF0IjoxNzc5MTkzMTQ1fQ.PrIQK0FeJvEn-TLWHxcfWRKT5HsmSnXQm2LWx6GTqgk}
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-http://supabase.localhost}
+        # افتراضيًا نستخدم بروكسي nginx الداخلي (same-origin) لتجنّب CORS.
+        # يمكن تجاوز هذه القيم لاحقاً من صفحة /settings داخل التطبيق.
+        VITE_OLLAMA_URL: ${VITE_OLLAMA_URL:-/proxy/ollama}
+        VITE_N8N_URL: ${VITE_N8N_URL:-/proxy/n8n}
+        VITE_N8N_WEBHOOK_BASE: ${VITE_N8N_WEBHOOK_BASE:-/proxy/n8n/webhook}
+        VITE_N8N_API_KEY: ${VITE_N8N_API_KEY:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-/proxy/supabase}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
     image: local-ai-ui:latest
     pull_policy: build
     container_name: local-ai-ui
     restart: unless-stopped
+    # للوصول إلى Ollama المثبَّت على ويندوز عبر host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ai.rule=Host(`ai.localhost`)"
