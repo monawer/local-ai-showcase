@@ -100,3 +100,38 @@ bun run dev    # http://localhost:8080
 
 لا يوجد باك-إند داخل الحاوية — فقط Nginx يخدم ملفات React ويعمل كبروكسي محلي
 للخدمات لتجنب CORS من المتصفح.
+
+## الإعداد الكامل خطوة بخطوة
+
+للحصول على دليل تفصيلي لإعداد كامل البيئة (Windows + Docker + Traefik + Ollama + Supabase + n8n + OpenWebUI)،
+راجع: [`docs/SETUP.ar.md`](docs/SETUP.ar.md)
+
+## استكشاف الأخطاء (Troubleshooting)
+
+| العَرَض | السبب المحتمل | الحل |
+|--------|---------------|------|
+| **العرض التجريبي يعيد خطأ 404** | لم تستورد أو تُفعّل ملف workflow في n8n | افتح `http://n8n.localhost` → Workflows → Import from file → اختر الملف من `n8n-workflows/` → فعّله (Active) |
+| **بطاقة Ollama حمراء "غير متاح"** | `OLLAMA_ORIGINS` غير مضبوط أو Ollama موقوف | شغّل `setx OLLAMA_ORIGINS "*"` ثم أعد تشغيل Ollama |
+| **بطاقة Supabase حمراء** | Host header خاطئ أو Supabase موقوف | تأكد أن Supabase Kong يعمل على `api.supabase.localhost` |
+| **بطاقة n8n: "متصل لكن لا توجد workflows"** | لا يوجد API key | في n8n: Settings → API → أنشئ مفتاحاً وضعه في `/settings` |
+| **عرض Q&A يعيد إجابة فارغة** | جدول `knowledge_base` فارغ في Supabase | شغّل `supabase/seed.sql` في Supabase Studio SQL Editor |
+| **n8n لا يصل لـ Ollama من داخل الحاوية** | استخدام `http://ollama:11434` بدل `host.docker.internal` | الـ workflows في `n8n-workflows/` تستخدم URL الصحيح بالفعل |
+| **خطأ "fetch failed" في المتصفح** | nginx لا يصل لـ Traefik | تأكد أن `traefik-net` موجودة وأن `local-ai-ui` ضمنها |
+| **العرض يأخذ وقتاً طويلاً جداً** | نموذج كبير أو CPU بطيء | استخدم نموذجاً أصغر مثل `llama3.2:3b` أو فعّل GPU |
+
+## معمارية الاتصال
+
+```
+المتصفح (ai.localhost)
+    │
+    ├─ /proxy/ollama/* ──→ nginx ──→ host.docker.internal:11434 (Ollama على Windows)
+    │
+    ├─ /proxy/n8n/webhook/<x> ──→ nginx ──→ Traefik [Host: n8n.localhost] ──→ n8n
+    │                                                                          │
+    │                                                                          ├─→ Ollama (Windows)
+    │                                                                          └─→ Supabase REST
+    │
+    ├─ /proxy/supabase/* ──→ nginx ──→ Traefik [Host: api.supabase.localhost] ──→ Supabase
+    │
+    └─ /proxy/webui/* ──→ nginx ──→ Traefik [Host: webui.localhost] ──→ OpenWebUI
+```

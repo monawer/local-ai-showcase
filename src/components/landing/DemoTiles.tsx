@@ -110,10 +110,21 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
         body: JSON.stringify({ input: input || demo.example }),
       });
       const text = await r.text();
+
+      if (r.status === 404) {
+        throw new Error(
+          `هذا العرض يحتاج استيراد workflow "${demo.webhook}" في n8n.\n\nالخطوات:\n1. افتح http://n8n.localhost\n2. Workflows ← Import from file\n3. اختر الملف: n8n-workflows/${demo.webhook}.json\n4. فعّل الـ workflow (Active)`,
+        );
+      }
+      if (r.status === 0 || r.status >= 500) {
+        throw new Error(
+          `الخدمة غير متاحة (HTTP ${r.status}).\n\nتحقق من:\n• n8n يعمل على http://n8n.localhost\n• Ollama يعمل على Windows (http://localhost:11434)\n• متغير OLLAMA_ORIGINS=* مُعرَّف`,
+        );
+      }
       if (!r.ok) {
         try {
-          const j = JSON.parse(text) as { hint?: string; error?: string };
-          throw new Error(j.hint ?? j.error ?? text);
+          const j = JSON.parse(text) as { hint?: string; error?: string; message?: string };
+          throw new Error(j.hint ?? j.error ?? j.message ?? text);
         } catch {
           throw new Error(text || `HTTP ${r.status}`);
         }
@@ -129,7 +140,15 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
         setResult(text);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ غير معروف");
+      const msg = e instanceof Error ? e.message : "خطأ غير معروف";
+      // Network errors (fetch failed) often mean nginx/Traefik can't reach n8n
+      if (msg.toLowerCase().includes("fail") || msg.toLowerCase().includes("network")) {
+        setError(
+          `تعذّر الاتصال بـ n8n.\n\nتحقق من:\n• n8n يعمل على http://n8n.localhost\n• Traefik شغّال ومرتبط بشبكة traefik-net`,
+        );
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

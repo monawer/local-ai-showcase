@@ -9,6 +9,7 @@ import { DemoTiles } from "@/components/landing/DemoTiles";
 import type { DemoTilesHandle } from "@/components/landing/DemoTiles";
 import { UseCases } from "@/components/landing/UseCases";
 import { Architecture } from "@/components/landing/Architecture";
+import { SetupStatus } from "@/components/landing/SetupStatus";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
       <QuickLinks />
       <ValueProp />
       <ServicesDashboard />
+      <SetupStatus />
       <ChatDemo />
       <DemoTiles ref={demoTilesRef} />
       <UseCases onTryDemo={handleTryDemo} />
