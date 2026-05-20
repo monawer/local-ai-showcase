@@ -1,86 +1,55 @@
-import { ShieldCheck, TrendingDown, Unplug, Scale } from "lucide-react";
+import { ShieldCheck, TrendingUp, Zap } from "lucide-react";
 
 const PROPS = [
   {
     icon: ShieldCheck,
-    color: "text-success",
-    bg: "bg-success/10 border-success/20",
-    title: "خصوصية لا تُساوم عليها",
-    desc: "بياناتك وبيانات عملائك لا تغادر شبكتك الداخلية أبداً. لا سحابة، لا خوادم خارجية.",
+    title: "الامتثال والخصوصية",
+    desc: "بيانات مؤسستك هي أثمن أصولك. لا تغادر شبكتك أبداً، متوافقة مع أعلى معايير الحوكمة الوطنية والدولية.",
   },
   {
-    icon: TrendingDown,
-    color: "text-warning",
-    bg: "bg-warning/10 border-warning/20",
-    title: "صفر رسوم استخدام شهرية",
-    desc: "لا اشتراكات OpenAI أو Azure AI. ادفع مرة واحدة للأجهزة واستخدم النماذج بلا حدود.",
+    icon: TrendingUp,
+    title: "عائد استثمار حقيقي",
+    desc: "وداعاً للفواتير الشهرية المتزايدة. استثمار واحد في البنية التحتية يمنحك استخداماً غير محدود لجميع الموظفين.",
   },
   {
-    icon: Unplug,
-    color: "text-primary",
-    bg: "bg-primary/10 border-primary/20",
-    title: "استقلالية تقنية كاملة",
-    desc: "لا اعتماد على موردين خارجيين. خدماتك تعمل حتى لو انقطع الإنترنت تماماً.",
-  },
-  {
-    icon: Scale,
-    color: "text-accent",
-    bg: "bg-accent/10 border-accent/20",
-    title: "امتثال تنظيمي مُدمج",
-    desc: "متوافق مع متطلبات حماية البيانات المحلية والإقليمية — بياناتك في نطاق اختصاصك القانوني.",
+    icon: Zap,
+    title: "استقلالية تكنولوجية",
+    desc: "لا تعتمد على مقدمي خدمة خارجيين. أنظمتك تعمل بكفاءة حتى في أكثر البيئات انعزالاً وأماناً.",
   },
 ];
 
 export function ValueProp() {
   return (
-    <section id="value-prop" className="relative py-16 md:py-20">
-      <div className="container mx-auto max-w-6xl px-6">
-        <div className="text-center mb-12">
-          <p className="text-sm font-mono text-primary mb-3">// WHY LOCAL AI</p>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+    <section
+      id="value-prop"
+      className="relative py-24 md:py-32 px-6 md:px-16 lg:px-24 bg-secondary/20"
+    >
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-16 md:mb-20">
+          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
             لماذا الذكاء الاصطناعي المحلي؟
           </h2>
-          <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
-            الذكاء الاصطناعي السحابي مريح، لكنه يكلّف أكثر مما تتوقع — مادياً وأمنياً.
-          </p>
+          <div className="w-24 h-1 bg-primary" />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid md:grid-cols-3 gap-8 md:gap-10">
           {PROPS.map((p) => {
             const Icon = p.icon;
             return (
               <div
                 key={p.title}
-                className={`rounded-xl border p-6 flex flex-col gap-4 value-card ${p.bg}`}
+                className="p-8 md:p-10 bg-secondary border border-primary/20 rounded-3xl value-card"
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${p.bg}`}>
-                  <Icon className={`h-5 w-5 ${p.color}`} />
+                <div className="text-primary mb-6">
+                  <Icon className="w-10 h-10" strokeWidth={1.5} />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1.5">{p.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{p.desc}</p>
-                </div>
+                <h3 className="font-display text-2xl font-bold mb-4">
+                  {p.title}
+                </h3>
+                <p className="text-foreground/70 leading-relaxed">{p.desc}</p>
               </div>
             );
           })}
-        </div>
-
-        {/* Comparison bar */}
-        <div className="mt-10 rounded-xl border border-border/60 bg-card/40 backdrop-blur p-6">
-          <div className="grid md:grid-cols-3 gap-6 text-center">
-            <div>
-              <div className="text-3xl font-bold text-success mb-1">0 ريال</div>
-              <div className="text-sm text-muted-foreground">رسوم API شهرية</div>
-            </div>
-            <div className="border-x border-border/40">
-              <div className="text-3xl font-bold text-primary mb-1">100%</div>
-              <div className="text-sm text-muted-foreground">بياناتك تبقى داخلياً</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-warning mb-1">∞</div>
-              <div className="text-sm text-muted-foreground">طلبات بلا حدود أو قيود</div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
