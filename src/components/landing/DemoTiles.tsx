@@ -162,10 +162,10 @@ function DemoCard({ demo, injectedText, index }: DemoCardProps) {
     setResult(null);
     try {
       const text = input.trim() || demo.example;
-      const ollamaUrl = serviceConfig.ollamaUrl;
 
-      let context: string | undefined;
+      // بطاقة "مساعد قاعدة المعرفة" تمر عبر n8n
       if (demo.id === "qa") {
+        let context = "";
         try {
           const rows = await fetchKnowledgeBase();
           if (rows.length > 0) {
@@ -174,13 +174,36 @@ function DemoCard({ demo, injectedText, index }: DemoCardProps) {
               .join("\n");
           }
         } catch (e) {
-          // continue without context; model will say it doesn't know
           console.warn("knowledge base unavailable", e);
         }
+
+        const url = joinUrl(serviceConfig.n8nWebhookBase, "qa");
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: text, context }),
+        });
+
+        if (!resp.ok) {
+          if (resp.status === 404) {
+            throw new Error(
+              "Webhook غير موجود (404).\n\nتأكد من استيراد وتفعيل workflow الـ qa في n8n.",
+            );
+          }
+          const body = await resp.text().catch(() => "");
+          throw new Error(`n8n أعاد HTTP ${resp.status}${body ? `: ${body}` : ""}`);
+        }
+
+        const data = await resp.json().catch(async () => await resp.text());
+        const reply = extractReply(data) || "(لا توجد إجابة)";
+        setResult(reply);
+        return;
       }
 
+      // باقي البطاقات: Ollama مباشرة
+      const ollamaUrl = serviceConfig.ollamaUrl;
       const model = await resolveModel(ollamaUrl);
-      const prompt = buildPrompt(demo.id, text, context);
+      const prompt = buildPrompt(demo.id, text);
 
       const resp = await fetch(joinUrl(ollamaUrl, "api/generate"), {
         method: "POST",
@@ -199,11 +222,19 @@ function DemoCard({ demo, injectedText, index }: DemoCardProps) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        setError(
-          "تعذّر الاتصال بـ Ollama.\n\nتحقق من:\n• Ollama يعمل ويمكن الوصول إليه عبر " +
-            serviceConfig.ollamaUrl +
-            "\n• وجود نموذج مثبّت (ollama pull llama3.2)\n• إعدادات CORS عند الوصول المباشر",
-        );
+        if (demo.id === "qa") {
+          setError(
+            "تعذّر الاتصال بـ n8n.\n\nتحقق من:\n• n8n يعمل ويمكن الوصول إليه عبر " +
+              serviceConfig.n8nWebhookBase +
+              "\n• استيراد وتفعيل workflow الـ qa",
+          );
+        } else {
+          setError(
+            "تعذّر الاتصال بـ Ollama.\n\nتحقق من:\n• Ollama يعمل ويمكن الوصول إليه عبر " +
+              serviceConfig.ollamaUrl +
+              "\n• وجود نموذج مثبّت (ollama pull llama3.2)\n• إعدادات CORS عند الوصول المباشر",
+          );
+        }
       } else {
         setError(msg);
       }
@@ -211,6 +242,7 @@ function DemoCard({ demo, injectedText, index }: DemoCardProps) {
       setLoading(false);
     }
   };
+
 
   const Icon = demo.icon;
   const seq = String(index + 1).padStart(2, "0");
