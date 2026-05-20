@@ -5,6 +5,7 @@ import { ValueProp } from "@/components/landing/ValueProp";
 import { ServicesDashboard } from "@/components/landing/ServicesDashboard";
 import { ChatDemo } from "@/components/landing/ChatDemo";
 import { TechAdvisorChat } from "@/components/landing/TechAdvisorChat";
+import { DemoTiles } from "@/components/landing/DemoTiles";
 import { UseCases } from "@/components/landing/UseCases";
 import { Architecture } from "@/components/landing/Architecture";
 import { SiteFooter } from "@/components/landing/SiteFooter";
@@ -26,6 +27,7 @@ export default function App() {
       <ValueProp />
       <ServicesDashboard />
       <ChatDemo />
+      <DemoTiles />
       <TechAdvisorChat />
       <UseCases />
       <Architecture />
