@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchKnowledgeBase } from "@/lib/supabase";
+import { serviceConfig, joinUrl } from "@/lib/service-config";
 
 type Demo = {
   id: string;
@@ -89,7 +90,7 @@ function buildPrompt(demoId: string, userInput: string, context?: string): strin
 }
 
 async function resolveModel(): Promise<string> {
-  const r = await fetch("/proxy/ollama/api/tags");
+  const r = await fetch(joinUrl(serviceConfig.ollamaUrl, "api/tags"));
   if (!r.ok) throw new Error(`Ollama HTTP ${r.status}`);
   const j = (await r.json()) as { models?: Array<{ name: string }> };
   const models = j.models ?? [];
@@ -158,7 +159,7 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
 
       const prompt = buildPrompt(demo.id, text, context);
 
-      const resp = await fetch("/proxy/ollama/api/generate", {
+      const resp = await fetch(joinUrl(serviceConfig.ollamaUrl, "api/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model, prompt, stream: false }),
