@@ -104,7 +104,7 @@ function extractReply(data: unknown): string {
 
 async function resolveModel(ollamaUrl: string): Promise<string> {
   const s = getSettingsSnapshot();
-  const preferred = s.services.ollama.defaultModel?.trim();
+  const preferred = (s.services.ollama as { defaultModel?: string }).defaultModel?.trim();
   try {
     const r = await fetch(joinUrl(ollamaUrl, "api/tags"));
     if (r.ok) {
