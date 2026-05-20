@@ -27,6 +27,7 @@ export default function App() {
       <ValueProp />
       <ServicesDashboard />
       <ChatDemo />
+      <DemoTiles />
       <TechAdvisorChat />
       <UseCases />
       <Architecture />
