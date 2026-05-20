@@ -1,0 +1,94 @@
+{
+  "name": "qa",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qa",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "qa"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://api.supabase.localhost/rest/v1/knowledge_base?select=category,question,answer",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc5MjE1NTQxLCJleHAiOjE5MzY4OTU1NDF9.ygWrlYmfeazfiM3rHf7RGUBp_ertR86s6pkDvxz1MnY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc5MjE1NTQxLCJleHAiOjE5MzY4OTU1NDF9.ygWrlYmfeazfiM3rHf7RGUBp_ertR86s6pkDvxz1MnY"
+            }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "supabase-fetch",
+      "name": "Fetch Knowledge Base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const question = $('Webhook').first().json.body.input || '';\nconst kb = $input.first().json;\nconst rows = Array.isArray(kb) ? kb : [];\nconst context = rows.map(r => `- [${r.category}] ${r.question}\\n  ${r.answer}`).join('\\n\\n');\nreturn [{ json: { question, context } }];"
+      },
+      "id": "build-context",
+      "name": "Build Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama3.1\",\n  \"prompt\": \"أنت مساعد ذكي للموظفين. أجب على سؤال الموظف بالاعتماد فقط على قاعدة المعرفة التالية. إن لم تجد إجابة، قل بوضوح: 'لا يوجد لدي معلومات عن هذا في قاعدة المعرفة.' لا تخترع معلومات.\\n\\nقاعدة المعرفة:\\n{{ $json.context }}\\n\\nسؤال الموظف: {{ $json.question }}\\n\\nالإجابة:\",\n  \"stream\": false,\n  \"options\": { \"temperature\": 0.2 }\n}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "ollama-call",
+      "name": "Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { output: $input.first().json.response } }];"
+      },
+      "id": "format-response",
+      "name": "Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Fetch Knowledge Base", "type": "main", "index": 0 }]]
+    },
+    "Fetch Knowledge Base": {
+      "main": [[{ "node": "Build Context", "type": "main", "index": 0 }]]
+    },
+    "Build Context": {
+      "main": [[{ "node": "Ollama", "type": "main", "index": 0 }]]
+    },
+    "Ollama": {
+      "main": [[{ "node": "Format", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

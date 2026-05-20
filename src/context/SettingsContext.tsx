@@ -45,6 +45,7 @@ function migrateLegacyUrl(value: string | undefined, fallback: string) {
     "http://n8n.localhost": "/proxy/n8n",
     "http://n8n.localhost/webhook": "/proxy/n8n/webhook",
     "http://supabase.localhost": "/proxy/supabase",
+    "http://api.supabase.localhost": "/proxy/supabase",
   };
   return map[normalized] ?? normalized;
 }

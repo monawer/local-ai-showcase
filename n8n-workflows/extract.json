@@ -1,10 +1,10 @@
 {
-  "name": "summarize",
+  "name": "extract",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "summarize",
+        "path": "extract",
         "responseMode": "lastNode",
         "options": {}
       },
@@ -13,7 +13,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [200, 300],
-      "webhookId": "summarize"
+      "webhookId": "extract"
     },
     {
       "parameters": {
@@ -21,7 +21,7 @@
         "url": "http://host.docker.internal:11434/api/generate",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"llama3.1\",\n  \"prompt\": \"أنت محلل تنفيذي. اقرأ النص التالي وأعدّ ملخصاً تنفيذياً مكوناً من ثلاثة أجزاء بدون أي مقدمات أو خاتمة:\\n\\n1. الملخص التنفيذي (جملتان فقط)\\n2. النقاط الرئيسية (3 نقاط على شكل قائمة)\\n3. التوصيات (2-3 توصيات قابلة للتنفيذ)\\n\\nالنص:\\n{{ $json.body.input }}\",\n  \"stream\": false,\n  \"options\": { \"temperature\": 0.3 }\n}",
+        "jsonBody": "={\n  \"model\": \"llama3.1\",\n  \"prompt\": \"أنت محلل بيانات. استخرج المعلومات المهمة من النص التالي وأعدها كـ JSON صالح بدون أي شرح أو نص قبله أو بعده. استخدم مفاتيح عربية وصفية مثل: رقم_الوثيقة، التاريخ، الأطراف، المبلغ، المدة، الشروط، الملاحظات. اترك المفتاح فارغاً إذا لم يكن موجوداً في النص.\\n\\nالنص:\\n{{ $json.body.input }}\\n\\nأعد فقط JSON صالح:\",\n  \"stream\": false,\n  \"format\": \"json\",\n  \"options\": { \"temperature\": 0.1 }\n}",
         "options": { "timeout": 120000 }
       },
       "id": "ollama-call",
@@ -32,7 +32,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return [{ json: { output: $input.first().json.response } }];"
+        "jsCode": "const raw = $input.first().json.response;\nlet parsed;\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = { raw }; }\nreturn [{ json: { output: JSON.stringify(parsed, null, 2) } }];"
       },
       "id": "format-response",
       "name": "Format",

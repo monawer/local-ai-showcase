@@ -96,6 +96,7 @@
 
   html {
     font-family: var(--font-sans);
+    scroll-behavior: smooth;
   }
 
   body {
@@ -120,5 +121,27 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  /* Navbar glassmorphism */
+  .navbar-glass {
+    background: oklch(0.16 0.04 270 / 0.80);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid oklch(1 0 0 / 0.06);
+  }
+
+  /* Value prop card hover */
+  .value-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .value-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px -12px oklch(0.05 0.05 270 / 0.5);
+  }
+
+  /* Section scroll margin for fixed navbar */
+  section[id] {
+    scroll-margin-top: 72px;
   }
 }
