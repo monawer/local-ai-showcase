@@ -1,49 +1,39 @@
-## السبب
+## الهدف
+تحويل العروض التجريبية الأربعة (تلخيص، تصنيف، استخلاص، أسئلة وأجوبة) من استدعاء Ollama مباشرة إلى استدعاء n8n webhooks بدلاً منها — تماماً كما يفعل "المستشار التقني".
 
-في `nginx.conf` كتلة `/proxy/n8n/` تضبط ترويسة WebSocket بدون شرط:
-
-```nginx
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-```
-
-عندما يأتي طلب عادي (مثل `GET /api/v1/workflows` من زر "اختبار الاتصال")، يكون `$http_upgrade` فارغاً، لكن `Connection: upgrade` تُرسَل دائماً. هذا التركيب غير الصحيح يؤدي أحياناً إلى:
-- إغلاق الاتصال من Traefik/n8n قبل إكمال الرد → يظهر للمتصفح كـ **Failed to fetch**.
-- بينما طلبات Webhook تعمل أحياناً لأنها POST سريعة لا تنتظر upgrade.
-
-نفس المشكلة قد تؤثر على OpenWebUI لاحقاً.
-
-الدليل: Ollama و Supabase لا يستخدمان `Upgrade`/`Connection` لذلك يعملان، بينما n8n الذي يضبطهما هو الوحيد الفاشل — وهذا يطابق ما أبلغ عنه المستخدم.
+## الحالة الحالية
+- `DemoTiles.tsx` يستدعي `serviceConfig.ollamaUrl` لجلب النماذج ثم `api/generate` مباشرة.
+- مجلد `n8n-workflows/` يحوي 4 سير عمل جاهزة: `summarize.json`, `classify.json`, `extract.json`, `qa.json` — كلٌّ منها webhook POST يستقبل `{ input }` ويرجّع `{ output }`.
+- `serviceConfig.n8nWebhookBase` متاح (افتراضياً `/proxy/n8n/webhook`).
 
 ## التغييرات
 
-### 1. `nginx.conf`
-- إضافة `map` على مستوى `http` لجعل `Connection` مشروطة بوجود `Upgrade`:
-  ```nginx
-  map $http_upgrade $connection_upgrade {
-      default upgrade;
-      ''      close;
-  }
+### 1. `src/components/landing/DemoTiles.tsx`
+- حذف دوال `resolveModel` و `buildPrompt` و `SYSTEM_PROMPTS` (المنطق سيعيش الآن داخل n8n).
+- تعديل `run()` ليُرسل POST إلى:
   ```
-- استبدال `proxy_set_header Connection "upgrade";` بـ `proxy_set_header Connection $connection_upgrade;` في كتلتي `/proxy/n8n/` و `/proxy/webui/`.
-- ملاحظة تقنية: `map` يجب أن يوضع في سياق `http`، لذلك سنضعه في ملف منفصل `/etc/nginx/conf.d/` أو نضيفه إلى Dockerfile.
+  ${serviceConfig.n8nWebhookBase}/${demo.id}
+  ```
+  بجسم `{ input: text, context? }` لحالة `qa`.
+- استخراج النص من الرد بنفس آلية `TechAdvisorChat.extractReply` (دعم `output`, `response`, ...). سننقلها إلى ملف مشترك أو ننسخها هنا للبساطة.
+- استبدال رسائل الخطأ الخاصة بـ Ollama برسائل خاصة بـ n8n (webhook غير مفعّل / المسار غير موجود).
+- استخلاص قاعدة المعرفة في `qa` يبقى من Supabase ويُمرَّر كـ `context` ضمن جسم الطلب (n8n سيقوم بدمجه في prompt الـ Ollama داخل سير العمل).
 
-### تفاصيل التنفيذ
-بما أن قالب nginx الرسمي يحمّل `/etc/nginx/conf.d/*.conf` تلقائياً ضمن سياق `http`، سننقل `map` إلى ملف جانبي مثل `nginx-maps.conf` يُنسخ في `Dockerfile` إلى `/etc/nginx/conf.d/00-maps.conf`، ونحتفظ بـ `nginx.conf` الحالي كـ server block فقط.
+### 2. `n8n-workflows/qa.json`
+- التأكد أن سير عمل `qa` يقبل حقل `context` ويُدمجه في prompt قبل إرساله إلى Ollama. (تعديل بسيط لـ `jsonBody`).
 
-أو الأبسط: نعدّل Dockerfile لينسخ ملف خفيف `nginx-maps.conf` إلى `/etc/nginx/conf.d/`، ونبقى `nginx.conf` يُنسخ إلى المكان المعتاد.
+### 3. النص التعريفي في `DemoTiles`
+- تحديث الفقرة التي تقول "تُعالج البيانات محلياً عبر Ollama" لتذكر n8n كطبقة تنسيق:
+  > "كل بطاقة تستدعي سير عمل n8n محلي يُنسّق النموذج عبر Ollama — كلها داخل شبكتكم."
 
-### 2. اختبار سريع بعد إعادة البناء
-```bash
-docker compose build && docker compose up -d
-curl -i http://ai.localhost/proxy/n8n/api/v1/workflows \
-  -H "X-N8N-API-KEY: $N8N_API_KEY"
-```
-يجب أن يُرجِع 200 مع JSON بدلاً من انقطاع الاتصال.
+### 4. توثيق `docs/SETUP.ar.md`
+- إضافة تعليمات استيراد سير العمل الأربعة في n8n وتفعيل كل webhook (URL النسبي `/webhook/summarize` ... إلخ).
 
-## ملفات سيتم تعديلها
-- `nginx.conf` — تعديل سطرين في `/proxy/n8n/` و `/proxy/webui/`.
-- `nginx-maps.conf` — ملف جديد.
-- `Dockerfile` — إضافة `COPY` لملف الـ map.
+## ما لن يتغيّر
+- `service-config`, `SettingsContext`, `TechAdvisorChat`, البنية البصرية للبطاقات.
+- استدعاء Supabase لقاعدة المعرفة في تجربة `qa`.
 
-لن يتغيّر أي كود React أو سلوك الواجهة.
+## التحقق
+بعد التشغيل عبر Docker:
+1. استيراد ملفات JSON في n8n وتفعيلها.
+2. الضغط على "تشغيل النموذج" في كل بطاقة → يجب أن يصل الطلب إلى `/proxy/n8n/webhook/<id>` ويرجع نصاً.
