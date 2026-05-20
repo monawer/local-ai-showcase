@@ -12,11 +12,10 @@ import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { joinUrl, serviceConfig } from "@/lib/service-config";
+import { fetchKnowledgeBase } from "@/lib/supabase";
 
 type Demo = {
   id: string;
-  webhook: string;
   title: string;
   description: string;
   icon: LucideIcon;
@@ -28,7 +27,6 @@ type Demo = {
 const DEMOS: Demo[] = [
   {
     id: "summarize",
-    webhook: "summarize",
     title: "تحليل المستندات",
     description:
       "ألصق أي وثيقة أو تقرير وسيستخلص النموذج الملخص التنفيذي والنقاط الرئيسية والتوصيات.",
@@ -40,7 +38,6 @@ const DEMOS: Demo[] = [
   },
   {
     id: "classify",
-    webhook: "classify",
     title: "تصنيف المراسلات",
     description:
       "أدخل نص رسالة أو بريد إلكتروني ليحدد النموذج الأولوية والقسم المعني والإجراء المقترح.",
@@ -52,7 +49,6 @@ const DEMOS: Demo[] = [
   },
   {
     id: "extract",
-    webhook: "extract",
     title: "استخلاص البيانات",
     description:
       "حوّل نصاً حراً — عقداً أو فاتورة أو نموذجاً — إلى بيانات JSON منظّمة وجاهزة للأنظمة.",
@@ -64,7 +60,6 @@ const DEMOS: Demo[] = [
   },
   {
     id: "qa",
-    webhook: "qa",
     title: "مساعد قاعدة المعرفة",
     description:
       "اطرح أي سؤال عن سياسات الشركة أو إجراءاتها وسيُجيب النموذج من قاعدة المعرفة الداخلية.",
@@ -74,6 +69,37 @@ const DEMOS: Demo[] = [
     example: "ما هي سياسة الإجازات السنوية ومتى يحق للموظف الجديد الحصول عليها؟",
   },
 ];
+
+const SYSTEM_PROMPTS: Record<string, string> = {
+  summarize:
+    "أنت محلل مستندات تنفيذي متخصص. مهمتك استخراج ثلاثة أقسام من النص المُدخَل:\n1. **الملخص التنفيذي** (3 جمل بالضبط)\n2. **أبرز النقاط** (قائمة bullet)\n3. **التوصيات** (قائمة مرقمة)\nالرد بالعربية الفصحى الواضحة فقط.",
+  classify:
+    "أنت نظام تصنيف ذكي للمراسلات. رُدّ بـ JSON فقط بدون أي نص إضافي، بهذه الحقول:\n{\"priority\": \"عاجل|عالي|متوسط|منخفض\", \"department\": \"اسم القسم\", \"action\": \"الإجراء المقترح\", \"sentiment\": \"إيجابي|سلبي|محايد\", \"summary\": \"ملخص من سطر واحد\"}",
+  extract:
+    "أنت محرك استخلاص بيانات منظّمة. استخرج جميع الكيانات المهمة من النص (أسماء، تواريخ، مبالغ، أرقام مرجعية، شروط) وأعِد JSON منظّماً فقط بدون أي نص إضافي.",
+  qa: "أنت مساعد مؤسسي متخصص في سياسات الشركة والموارد البشرية. أجب على السؤال بناءً على السياق المُقدَّم فقط. إذا لم تجد إجابة كافية في السياق، قل 'لم أجد معلومات كافية في قاعدة المعرفة'. الرد بالعربية الفصحى.",
+};
+
+function buildPrompt(demoId: string, userInput: string, context?: string): string {
+  const system = SYSTEM_PROMPTS[demoId] ?? SYSTEM_PROMPTS.summarize;
+  if (demoId === "qa" && context) {
+    return `${system}\n\n--- قاعدة المعرفة ---\n${context}\n--- نهاية قاعدة المعرفة ---\n\nالسؤال: ${userInput}`;
+  }
+  return `${system}\n\nالنص المُدخَل:\n${userInput}`;
+}
+
+async function resolveModel(): Promise<string> {
+  const r = await fetch("/proxy/ollama/api/tags");
+  if (!r.ok) throw new Error(`Ollama HTTP ${r.status}`);
+  const j = (await r.json()) as { models?: Array<{ name: string }> };
+  const models = j.models ?? [];
+  if (models.length === 0) {
+    throw new Error(
+      "لم يُعثَر على نماذج في Ollama.\n\nشغّل أحد الأوامر التالية:\n  ollama pull llama3.2:3b\n  ollama pull qwen2.5:7b",
+    );
+  }
+  return models[0].name;
+}
 
 export type DemoTilesHandle = {
   setInput: (text: string) => void;
@@ -103,52 +129,51 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
     setError(null);
     setResult(null);
     try {
-      const url = joinUrl(serviceConfig.n8nWebhookBase, demo.webhook);
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: input || demo.example }),
-      });
-      const text = await r.text();
+      const text = input.trim() || demo.example;
 
-      if (r.status === 404) {
-        throw new Error(
-          `هذا العرض يحتاج استيراد workflow "${demo.webhook}" في n8n.\n\nالخطوات:\n1. افتح http://n8n.localhost\n2. Workflows ← Import from file\n3. اختر الملف: n8n-workflows/${demo.webhook}.json\n4. فعّل الـ workflow (Active)`,
-        );
+      let model: string;
+      try {
+        model = await resolveModel();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("fetch") || msg.includes("Failed") || msg.includes("NetworkError")) {
+          throw new Error(
+            "Ollama غير متصل.\n\nتحقق من:\n• Ollama يعمل على Windows (http://localhost:11434)\n• متغير OLLAMA_ORIGINS=* مُعرَّف\n• أعِد تشغيل Ollama بعد ضبط المتغير",
+          );
+        }
+        throw e;
       }
-      if (r.status === 0 || r.status >= 500) {
-        throw new Error(
-          `الخدمة غير متاحة (HTTP ${r.status}).\n\nتحقق من:\n• n8n يعمل على http://n8n.localhost\n• Ollama يعمل على Windows (http://localhost:11434)\n• متغير OLLAMA_ORIGINS=* مُعرَّف`,
-        );
-      }
-      if (!r.ok) {
+
+      let context: string | undefined;
+      if (demo.id === "qa") {
         try {
-          const j = JSON.parse(text) as { hint?: string; error?: string; message?: string };
-          throw new Error(j.hint ?? j.error ?? j.message ?? text);
+          const rows = await fetchKnowledgeBase();
+          if (rows.length > 0) {
+            context = rows.map((r) => `س: ${r.question}\nج: ${r.answer}`).join("\n\n");
+          }
         } catch {
-          throw new Error(text || `HTTP ${r.status}`);
+          // proceed without context — Ollama will answer from training knowledge
         }
       }
-      try {
-        const j = JSON.parse(text) as Record<string, unknown>;
-        setResult(
-          typeof j === "string"
-            ? j
-            : String(j.output ?? j.result ?? j.text ?? JSON.stringify(j, null, 2)),
-        );
-      } catch {
-        setResult(text);
+
+      const prompt = buildPrompt(demo.id, text, context);
+
+      const resp = await fetch("/proxy/ollama/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model, prompt, stream: false }),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        throw new Error(`Ollama أعاد HTTP ${resp.status}${body ? `: ${body}` : ""}`);
       }
+
+      const j = (await resp.json()) as { response?: string; error?: string };
+      if (j.error) throw new Error(j.error);
+      setResult(j.response ?? "");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "خطأ غير معروف";
-      // Network errors (fetch failed) often mean nginx/Traefik can't reach n8n
-      if (msg.toLowerCase().includes("fail") || msg.toLowerCase().includes("network")) {
-        setError(
-          `تعذّر الاتصال بـ n8n.\n\nتحقق من:\n• n8n يعمل على http://n8n.localhost\n• Traefik شغّال ومرتبط بشبكة traefik-net`,
-        );
-      } else {
-        setError(msg);
-      }
+      setError(e instanceof Error ? e.message : "خطأ غير معروف");
     } finally {
       setLoading(false);
     }
@@ -206,7 +231,7 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
           className={
             error
               ? "mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs font-mono text-destructive whitespace-pre-wrap"
-              : "mt-4 rounded-md border border-success/30 bg-success/5 p-3 text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed"
+              : "mt-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed"
           }
         >
           {error ?? result}
@@ -236,7 +261,7 @@ export const DemoTiles = forwardRef<DemoTilesHandle, Record<string, never>>(
               عروض تجريبية تعمل الآن
             </h2>
             <p className="mt-3 text-muted-foreground">
-              كل عرض يعالج البيانات محلياً عبر Ollama و n8n — لا إنترنت، لا بيانات تغادر شبكتك.
+              كل عرض يعالج البيانات محلياً عبر Ollama — لا إنترنت، لا بيانات تغادر شبكتك.
             </p>
           </div>
 
