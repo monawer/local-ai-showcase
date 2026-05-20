@@ -49,7 +49,7 @@ export function TechAdvisorChat() {
     setLoading(true);
 
     try {
-      const url = joinUrl(serviceConfig.n8nUrl, "webhook-test/tech-advisor");
+      const url = joinUrl(serviceConfig.n8nUrl, "webhook/tech-advisor");
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
