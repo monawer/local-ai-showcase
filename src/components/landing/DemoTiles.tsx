@@ -13,9 +13,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { serviceConfig, joinUrl } from "@/lib/service-config";
+import { fetchKnowledgeBase } from "@/lib/supabase";
+import { getSettingsSnapshot } from "@/context/SettingsContext";
+
+type DemoId = "summarize" | "classify" | "extract" | "qa";
 
 type Demo = {
-  id: string;
+  id: DemoId;
   title: string;
   description: string;
   icon: LucideIcon;
@@ -70,12 +74,22 @@ const DEMOS: Demo[] = [
   },
 ];
 
+const SYSTEM_PROMPTS: Record<DemoId, string> = {
+  summarize:
+    "أنت محلل تنفيذي. لخّص النص التالي بالعربية الفصحى في صورة: ملخص تنفيذي من سطرين، ثم 3-5 نقاط رئيسية، ثم توصيات عملية. كن موجزاً ومباشراً.",
+  classify:
+    "أنت مصنّف مراسلات. حلّل الرسالة التالية وأعِد النتيجة بالعربية بهذا التنسيق فقط:\nالأولوية: (عالية/متوسطة/منخفضة)\nالقسم المعني: ...\nالنية: ...\nالإجراء المقترح: ...",
+  extract:
+    "أنت مستخلص بيانات. حوّل النص التالي إلى JSON منظّم فقط (بدون أي شرح). استخرج الحقول المفهومة من السياق مثل: contract_number, date, parties, duration, amount, currency, payment_terms.",
+  qa: "أنت مساعد موارد بشرية. أجب عن سؤال الموظف بالعربية معتمداً حصراً على قاعدة المعرفة المرفقة. إذا لم تجد الإجابة فيها، قُل ذلك صراحةً. كن موجزاً ومهنياً.",
+};
+
 function extractReply(data: unknown): string {
   if (typeof data === "string") return data;
   if (Array.isArray(data) && data.length > 0) return extractReply(data[0]);
   if (data && typeof data === "object") {
     const obj = data as Record<string, unknown>;
-    for (const key of ["output", "response", "reply", "text", "answer", "message", "result"]) {
+    for (const key of ["response", "output", "reply", "text", "answer", "message", "result"]) {
       const v = obj[key];
       if (typeof v === "string" && v.trim()) return v;
       if (v && typeof v === "object") {
@@ -86,6 +100,36 @@ function extractReply(data: unknown): string {
     return JSON.stringify(data, null, 2);
   }
   return String(data ?? "");
+}
+
+async function resolveModel(ollamaUrl: string): Promise<string> {
+  const s = getSettingsSnapshot();
+  const preferred = s.services.ollama.defaultModel?.trim();
+  try {
+    const r = await fetch(joinUrl(ollamaUrl, "api/tags"));
+    if (r.ok) {
+      const j = (await r.json()) as { models?: Array<{ name?: string; model?: string }> };
+      const names = (j.models ?? [])
+        .map((m) => m.name || m.model)
+        .filter((n): n is string => !!n);
+      if (preferred && names.includes(preferred)) return preferred;
+      if (names.length > 0) return names[0];
+    }
+  } catch {
+    // fall through
+  }
+  if (preferred) return preferred;
+  throw new Error(
+    "لا توجد نماذج مثبّتة في Ollama.\n\nثبّت نموذجاً عبر: ollama pull llama3.2",
+  );
+}
+
+function buildPrompt(demoId: DemoId, input: string, context?: string): string {
+  const system = SYSTEM_PROMPTS[demoId];
+  if (demoId === "qa" && context) {
+    return `${system}\n\n=== قاعدة المعرفة ===\n${context}\n\n=== سؤال الموظف ===\n${input}\n\n=== الإجابة ===`;
+  }
+  return `${system}\n\n=== النص ===\n${input}\n\n=== الناتج ===`;
 }
 
 export type DemoTilesHandle = {
@@ -118,35 +162,47 @@ function DemoCard({ demo, injectedText, index }: DemoCardProps) {
     setResult(null);
     try {
       const text = input.trim() || demo.example;
-      const url = joinUrl(serviceConfig.n8nWebhookBase, demo.id);
+      const ollamaUrl = serviceConfig.ollamaUrl;
 
-      const resp = await fetch(url, {
+      let context: string | undefined;
+      if (demo.id === "qa") {
+        try {
+          const rows = await fetchKnowledgeBase();
+          if (rows.length > 0) {
+            context = rows
+              .map((r) => `• [${r.category}] ${r.question}\n  ${r.answer}`)
+              .join("\n");
+          }
+        } catch (e) {
+          // continue without context; model will say it doesn't know
+          console.warn("knowledge base unavailable", e);
+        }
+      }
+
+      const model = await resolveModel(ollamaUrl);
+      const prompt = buildPrompt(demo.id, text, context);
+
+      const resp = await fetch(joinUrl(ollamaUrl, "api/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text }),
+        body: JSON.stringify({ model, prompt, stream: false }),
       });
 
       if (!resp.ok) {
         const body = await resp.text().catch(() => "");
-        if (resp.status === 404) {
-          throw new Error(
-            `سير عمل n8n غير موجود (${demo.id}).\n\nاستورد الملف n8n-workflows/${demo.id}.json في n8n وفعّله.`,
-          );
-        }
-        throw new Error(`n8n أعاد HTTP ${resp.status}${body ? `: ${body}` : ""}`);
+        throw new Error(`Ollama أعاد HTTP ${resp.status}${body ? `: ${body}` : ""}`);
       }
 
-      const ct = resp.headers.get("content-type") ?? "";
-      const data = ct.includes("application/json") ? await resp.json() : await resp.text();
+      const data = await resp.json();
       const reply = extractReply(data) || "(لا توجد إجابة)";
       setResult(reply);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
         setError(
-          "تعذّر الاتصال بـ n8n.\n\nتحقق من:\n• n8n يعمل ويمكن الوصول إليه عبر " +
-            serviceConfig.n8nWebhookBase +
-            "\n• سير العمل مُستورَد ومُفعَّل (Active)",
+          "تعذّر الاتصال بـ Ollama.\n\nتحقق من:\n• Ollama يعمل ويمكن الوصول إليه عبر " +
+            serviceConfig.ollamaUrl +
+            "\n• وجود نموذج مثبّت (ollama pull llama3.2)\n• إعدادات CORS عند الوصول المباشر",
         );
       } else {
         setError(msg);
@@ -207,7 +263,7 @@ function DemoCard({ demo, injectedText, index }: DemoCardProps) {
           ) : (
             <>
               <Play className="h-3.5 w-3.5 ms-2" />
-              تشغيل عبر n8n
+              تشغيل النموذج
             </>
           )}
         </Button>
@@ -257,7 +313,7 @@ export const DemoTiles = forwardRef<DemoTilesHandle, Record<string, never>>(
           <div className="grid md:grid-cols-12 gap-8 items-end mb-10">
             <div className="md:col-span-7">
               <p className="text-[11px] font-mono tracking-[0.25em] uppercase text-primary mb-4">
-                · n8n × Ollama · Live
+                · Ollama · Local Inference
               </p>
               <h2 className="font-heading text-4xl md:text-5xl font-bold tracking-tight leading-[1.05]">
                 أربع منصّات ذكاء تعمل
@@ -267,7 +323,7 @@ export const DemoTiles = forwardRef<DemoTilesHandle, Record<string, never>>(
             </div>
             <div className="md:col-span-5 md:border-s md:border-border/50 md:ps-8">
               <p className="text-muted-foreground leading-relaxed text-[15px]">
-                كل بطاقة تستدعي سير عمل n8n محلياً يُنسّق النموذج عبر Ollama —
+                كل بطاقة تستدعي نموذج Ollama محلياً مباشرة —
                 لا اشتراك، لا API خارجي، ولا بيانات تغادر شبكتكم.
               </p>
             </div>
@@ -277,7 +333,7 @@ export const DemoTiles = forwardRef<DemoTilesHandle, Record<string, never>>(
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border/40 border border-border/40 rounded-lg overflow-hidden mb-10">
             {[
-              { k: "سير عمل n8n", v: "4", s: "summarize · classify · extract · qa" },
+              { k: "نماذج جاهزة", v: "4", s: "summarize · classify · extract · qa" },
               { k: "زمن استجابة", v: "<2s", s: "متوسط على GPU محلي" },
               { k: "تكلفة API", v: "0 ﷼", s: "لا رسوم استهلاك" },
               { k: "خروج بيانات", v: "صفر", s: "Air-gapped بالكامل" },
