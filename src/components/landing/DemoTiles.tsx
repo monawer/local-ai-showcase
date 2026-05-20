@@ -109,9 +109,10 @@ export type DemoTilesHandle = {
 type DemoCardProps = {
   demo: Demo;
   injectedText?: string;
+  index: number;
 };
 
-function DemoCard({ demo, injectedText }: DemoCardProps) {
+function DemoCard({ demo, injectedText, index }: DemoCardProps) {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -153,7 +154,7 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
             context = rows.map((r) => `س: ${r.question}\nج: ${r.answer}`).join("\n\n");
           }
         } catch {
-          // proceed without context — Ollama will answer from training knowledge
+          // proceed without context
         }
       }
 
@@ -181,31 +182,48 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
   };
 
   const Icon = demo.icon;
+  const seq = String(index + 1).padStart(2, "0");
+
   return (
-    <Card className="bg-card/60 backdrop-blur border-border/60 p-6 flex flex-col transition-all duration-200 hover:border-primary/30">
-      <div className="flex items-start justify-between gap-3 mb-3">
+    <Card className="relative bg-card/70 backdrop-blur border-border/60 p-7 flex flex-col transition-all duration-300 hover:border-primary/40 overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+      <span
+        className="absolute top-5 left-6 font-heading text-5xl font-light text-primary/15 select-none leading-none"
+        aria-hidden
+      >
+        {seq}
+      </span>
+
+      <div className="flex items-start justify-between gap-3 mb-4 relative">
         <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/15 p-2 text-primary">
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-primary">
             <Icon className="h-4 w-4" />
           </div>
-          <h3 className="font-semibold">{demo.title}</h3>
+          <h3 className="font-heading font-semibold text-lg tracking-tight">{demo.title}</h3>
         </div>
-        <span className="text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+        <span className="text-[10px] font-medium tracking-[0.18em] uppercase text-muted-foreground/80 border border-border/60 px-2 py-1 rounded-sm whitespace-nowrap shrink-0">
           {demo.badge}
         </span>
       </div>
-      <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{demo.description}</p>
+
+      <p className="text-sm text-muted-foreground mb-5 leading-relaxed">{demo.description}</p>
 
       <Textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder={demo.placeholder}
         rows={4}
-        className="bg-background/40 text-sm resize-none mb-3 leading-relaxed"
+        className="bg-background/50 text-sm resize-none mb-4 leading-relaxed border-border/60 focus-visible:border-primary/40"
       />
 
-      <div className="flex items-center gap-2">
-        <Button onClick={run} disabled={loading} size="sm" className="bg-primary hover:bg-primary/90">
+      <div className="flex items-center justify-between gap-2">
+        <Button
+          onClick={run}
+          disabled={loading}
+          size="sm"
+          variant="outline"
+          className="border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+        >
           {loading ? (
             <>
               <Loader2 className="h-3.5 w-3.5 animate-spin ms-2" />
@@ -214,13 +232,13 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
           ) : (
             <>
               <Play className="h-3.5 w-3.5 ms-2" />
-              تشغيل
+              تشغيل النموذج
             </>
           )}
         </Button>
         <button
           onClick={() => setInput(demo.example)}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
         >
           <Sparkles className="h-3 w-3" />
           جرّب مثالاً
@@ -228,14 +246,19 @@ function DemoCard({ demo, injectedText }: DemoCardProps) {
       </div>
 
       {(result || error) && (
-        <div
-          className={
-            error
-              ? "mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs font-mono text-destructive whitespace-pre-wrap"
-              : "mt-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed"
-          }
-        >
-          {error ?? result}
+        <div className="mt-5">
+          <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/70 mb-2 font-mono">
+            {error ? "ERROR" : "OUTPUT"}
+          </div>
+          <div
+            className={
+              error
+                ? "border-l-2 border-destructive ps-4 py-1 text-xs font-mono text-destructive whitespace-pre-wrap"
+                : "border-l-2 border-primary ps-4 py-1 text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed"
+            }
+          >
+            {error ?? result}
+          </div>
         </div>
       )}
     </Card>
@@ -256,21 +279,52 @@ export const DemoTiles = forwardRef<DemoTilesHandle, Record<string, never>>(
     return (
       <section id="demos" className="relative py-20 md:py-28 bg-background/40">
         <div className="container mx-auto max-w-6xl px-6">
-          <div className="mb-12 max-w-2xl">
-            <p className="text-sm font-mono text-primary mb-3">// LIVE DEMOS</p>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              عروض تجريبية تعمل الآن
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              كل عرض يعالج البيانات محلياً عبر Ollama — لا إنترنت، لا بيانات تغادر شبكتك.
-            </p>
+          <div className="grid md:grid-cols-12 gap-8 items-end mb-10">
+            <div className="md:col-span-7">
+              <p className="text-[11px] font-mono tracking-[0.25em] uppercase text-primary mb-4">
+                · AI Workflows · Live
+              </p>
+              <h2 className="font-heading text-4xl md:text-5xl font-bold tracking-tight leading-[1.05]">
+                أربع منصّات ذكاء تعمل
+                <br />
+                <span className="text-primary">داخل جدرانكم</span>
+              </h2>
+            </div>
+            <div className="md:col-span-5 md:border-s md:border-border/50 md:ps-8">
+              <p className="text-muted-foreground leading-relaxed text-[15px]">
+                كل بطاقة هنا ليست عرضاً تسويقياً، بل سير عمل حقيقي يستهلكه فريقكم اليوم. تُعالج
+                البيانات محلياً عبر Ollama؛ لا اشتراك، لا API خارجي، لا بيانات تغادر شبكتكم.
+              </p>
+            </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="h-px bg-border/40 mb-10" />
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border/40 border border-border/40 rounded-lg overflow-hidden mb-10">
+            {[
+              { k: "نماذج جاهزة", v: "4+", s: "Llama · Qwen · Mistral" },
+              { k: "زمن استجابة", v: "<2s", s: "متوسط على GPU محلي" },
+              { k: "تكلفة API", v: "0 ﷼", s: "لا رسوم استهلاك" },
+              { k: "خروج بيانات", v: "صفر", s: "Air-gapped بالكامل" },
+            ].map((kpi) => (
+              <div key={kpi.k} className="bg-card/60 backdrop-blur p-5">
+                <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 mb-2 font-mono">
+                  {kpi.k}
+                </div>
+                <div className="font-heading text-2xl md:text-3xl font-bold text-foreground mb-1">
+                  {kpi.v}
+                </div>
+                <div className="text-xs text-muted-foreground">{kpi.s}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
             {DEMOS.map((d, idx) => (
               <DemoCard
                 key={d.id}
                 demo={d}
+                index={idx}
                 injectedText={idx === 0 ? injectedText : undefined}
               />
             ))}
