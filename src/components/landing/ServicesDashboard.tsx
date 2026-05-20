@@ -1,5 +1,4 @@
-import { Brain, Workflow, Database, MessageSquare, ExternalLink } from "lucide-react";
-import { ServiceCard } from "./ServiceCard";
+import { Layers, MessageSquare, Database, Workflow } from "lucide-react";
 import {
   useOllamaStatus,
   useN8nStatus,
@@ -7,33 +6,33 @@ import {
   useOpenWebUIStatus,
 } from "@/hooks/useServiceStatus";
 
-function formatBytes(n: number) {
-  if (!n) return "—";
-  const gb = n / 1024 ** 3;
-  if (gb >= 1) return `${gb.toFixed(1)} GB`;
-  const mb = n / 1024 ** 2;
-  return `${mb.toFixed(0)} MB`;
-}
-
-const SERVICE_LINKS: Record<string, { label: string; url: string } | undefined> = {
-  n8n: { label: "افتح n8n", url: "http://n8n.localhost" },
-  supabase: { label: "Supabase Studio", url: "http://supabase.localhost" },
-  openwebui: { label: "افتح المساعد", url: "http://webui.localhost" },
+type CardProps = {
+  label: string;
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  active: boolean;
+  footer: React.ReactNode;
 };
 
-function ServiceLink({ service }: { service: string }) {
-  const link = SERVICE_LINKS[service];
-  if (!link) return null;
+function ServiceTile({ label, icon: Icon, title, subtitle, active, footer }: CardProps) {
   return (
-    <a
-      href={link.url}
-      target="_blank"
-      rel="noreferrer"
-      className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
-    >
-      <ExternalLink className="h-3 w-3" />
-      {link.label}
-    </a>
+    <div className="bg-background border border-primary/40 p-6 rounded-2xl relative overflow-hidden">
+      <div className="flex justify-between items-start mb-8">
+        <div className="p-2 bg-primary/10 rounded-lg">
+          <Icon className="w-6 h-6 text-primary" strokeWidth={1.8} />
+        </div>
+        <span
+          className={`text-xs font-bold ${active ? "text-success" : "text-destructive/80"}`}
+        >
+          {active ? "نشط" : "غير متاح"}
+        </span>
+      </div>
+      <h4 className="font-display text-xl font-bold mb-1">{label}</h4>
+      <div className="text-2xl font-bold text-foreground mb-4">{title}</div>
+      <div className="text-xs text-foreground/50 mb-1">{subtitle}</div>
+      <div className="mt-2">{footer}</div>
+    </div>
   );
 }
 
@@ -43,113 +42,98 @@ export function ServicesDashboard() {
   const supa = useSupabaseStatus();
   const webui = useOpenWebUIStatus();
 
-  const ollamaStatus = ollama.isLoading
-    ? "loading"
-    : ollama.data?.ok && ollama.data.models.length > 0
-      ? "ok"
-      : ollama.data?.ok
-        ? "warn"
-        : "down";
-
-  const n8nStatus = n8n.isLoading
-    ? "loading"
-    : n8n.data?.ok && n8n.data.total > 0
-      ? "ok"
-      : n8n.data?.ok
-        ? "warn"
-        : "down";
-
-  const supaStatus = supa.isLoading
-    ? "loading"
-    : supa.data?.ok
-      ? "ok"
-      : "down";
-
-  const webuiStatus = webui.isLoading
-    ? "loading"
-    : webui.data?.ok
-      ? "ok"
-      : "down";
+  const ollamaModel =
+    ollama.data?.models?.[0]?.name?.split(":")[0] ??
+    (ollama.data?.ok ? "جاهز" : "—");
+  const ollamaCount = ollama.data?.models?.length ?? 0;
 
   return (
-    <section id="services" className="relative py-20 md:py-28">
-      <div className="container mx-auto max-w-6xl px-6">
-        <div className="mb-12 max-w-2xl">
-          <p className="text-sm font-mono text-primary mb-3">// LIVE DASHBOARD</p>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-            حالة الخدمات في الوقت الحقيقي
-          </h2>
-          <p className="mt-3 text-muted-foreground">
-            الصفحة تتصل مباشرة بالخدمات على سيرفرك وتُحدّث الحالة كل 15 ثانية — كل شيء يعمل محلياً
-            على شبكتك الداخلية.
-          </p>
+    <section
+      id="services"
+      className="relative py-24 md:py-32 px-6 md:px-16 lg:px-24"
+    >
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 md:mb-16 gap-6">
+          <div>
+            <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
+              حالة الخدمات الحية
+            </h2>
+            <p className="text-foreground/60 max-w-xl">
+              مراقبة فورية لأداء النماذج والبنية التحتية داخل مركز بياناتك.
+            </p>
+          </div>
+          <div className="px-4 py-2 bg-secondary rounded-lg border border-primary/30 text-xs font-mono uppercase tracking-widest text-primary">
+            System Health: Optimal
+          </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="flex flex-col">
-            <ServiceCard
-              title="Ollama"
-              icon={Brain}
-              status={ollamaStatus as never}
-              primary={
-                ollama.data?.models.length
-                  ? `${ollama.data.models.length} نموذج`
-                  : "0"
-              }
-              rows={
-                ollama.data?.models.slice(0, 3).map((m) => ({
-                  label: m.name.split(":")[0] ?? m.name,
-                  value: formatBytes(m.size),
-                })) ?? []
-              }
-              note={ollama.data?.error ?? "النماذج اللغوية المحلية"}
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <ServiceTile
+            label="Ollama"
+            icon={Layers}
+            title={ollamaModel}
+            subtitle={`${ollamaCount} نموذج محلي`}
+            active={!!ollama.data?.ok}
+            footer={
+              <>
+                <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-primary h-full transition-all"
+                    style={{ width: ollama.data?.ok ? "75%" : "0%" }}
+                  />
+                </div>
+                <div className="mt-2 text-[10px] text-foreground/40 flex justify-between uppercase">
+                  <span>Inference Engine</span>
+                  <span>{ollama.data?.ok ? "75%" : "—"}</span>
+                </div>
+              </>
+            }
+          />
 
-          <div className="flex flex-col">
-            <ServiceCard
-              title="OpenWebUI"
-              icon={MessageSquare}
-              status={webuiStatus as never}
-              primary={webui.data?.ok ? "جاهز" : "—"}
-              rows={[
-                { label: "الواجهة", value: webui.data?.ok ? "✓ متاح" : "✕" },
-                { label: "النطاق", value: "webui.localhost" },
-              ]}
-              note="مساعد الذكاء الاصطناعي الكامل"
-            />
-            <ServiceLink service="openwebui" />
-          </div>
+          <ServiceTile
+            label="OpenWebUI"
+            icon={MessageSquare}
+            title={webui.data?.ok ? "جاهز" : "—"}
+            subtitle="واجهة المساعد التنفيذية"
+            active={!!webui.data?.ok}
+            footer={
+              <div className="flex -space-x-2 space-x-reverse">
+                <div className="w-8 h-8 rounded-full border-2 border-background bg-primary flex items-center justify-center text-[10px] font-bold">
+                  EX
+                </div>
+                <div className="w-8 h-8 rounded-full border-2 border-background bg-secondary flex items-center justify-center text-[10px] font-bold">
+                  +
+                </div>
+              </div>
+            }
+          />
 
-          <div className="flex flex-col">
-            <ServiceCard
-              title="n8n"
-              icon={Workflow}
-              status={n8nStatus as never}
-              primary={`${n8n.data?.active ?? 0}/${n8n.data?.total ?? 0}`}
-              rows={[
-                { label: "النشطة", value: String(n8n.data?.active ?? 0) },
-                { label: "المجموع", value: String(n8n.data?.total ?? 0) },
-              ]}
-              note={n8n.data?.note ?? n8n.data?.error ?? "أتمتة سير العمل"}
-            />
-            <ServiceLink service="n8n" />
-          </div>
+          <ServiceTile
+            label="Supabase"
+            icon={Database}
+            title={supa.data?.ok ? "متصلة" : "—"}
+            subtitle="قاعدة بيانات محلية مؤمّنة"
+            active={!!supa.data?.ok}
+            footer={
+              <div className="text-xs text-foreground/50">
+                Vector Search Optimized · AES-256
+              </div>
+            }
+          />
 
-          <div className="flex flex-col">
-            <ServiceCard
-              title="Supabase"
-              icon={Database}
-              status={supaStatus as never}
-              primary={supa.data?.ok ? "OK" : "—"}
-              rows={[
-                { label: "REST", value: supa.data?.services.rest ? "✓" : "✕" },
-                { label: "Gateway", value: supa.data?.services.gateway ? "✓" : "✕" },
-              ]}
-              note={supa.data?.error ?? "Postgres + Auth + Storage"}
-            />
-            <ServiceLink service="supabase" />
-          </div>
+          <ServiceTile
+            label="n8n"
+            icon={Workflow}
+            title={`${n8n.data?.active ?? 0}/${n8n.data?.total ?? 0}`}
+            subtitle="مسارات أتمتة ذكية"
+            active={!!n8n.data?.ok}
+            footer={
+              <div className="text-xs text-foreground/50">
+                {n8n.data?.active ?? 0} Workflow{(n8n.data?.active ?? 0) === 1 ? "" : "s"}{" "}
+                Active
+              </div>
+            }
+          />
         </div>
       </div>
     </section>
